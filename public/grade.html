@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Grading — Examiner</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div class="topbar"><strong>Examiner</strong><div class="nav"><a class="navlink" href="dashboard.html">← Dashboard</a></div></div>
+<div class="shell">
+  <div id="listCard" class="card">
+    <h2>Submissions</h2>
+    <p class="hint">Every submission is kept permanently, graded or not.</p>
+    <div id="subList">Loading…</div>
+  </div>
+
+  <div id="gradeCard" class="card" style="display:none;">
+    <h2>Grade submission</h2>
+    <div id="gradeMsg"></div>
+    <div id="gradeBody"></div>
+  </div>
+</div>
+<script src="js/api.js"></script>
+<script>
+if (Api.requireLogin()) {
+  if (Api.getUser() && Api.getUser().role !== 'examiner') { window.location.href = 'my-results.html'; }
+  const params = new URLSearchParams(location.search);
+  const id = params.get('id');
+
+  if (id) {
+    document.getElementById('listCard').style.display = 'none';
+    document.getElementById('gradeCard').style.display = 'block';
+    loadForGrading(id);
+  } else {
+    loadList();
+  }
+
+  async function loadList() {
+    const el = document.getElementById('subList');
+    try {
+      const { submissions } = await Api.request('/submissions');
+      if (!submissions.length) { el.innerHTML = '<p class="hint">No submissions yet.</p>'; return; }
+      el.innerHTML = submissions.map(s => `
+        <div class="list-item">
+          <div>
+            <strong>${escapeHtml(s.candidateName)}</strong> — ${escapeHtml(s.examTitle)}
+            <div class="muted">${new Date(s.submittedAt).toLocaleString()}</div>
+          </div>
+          <div class="row">
+            ${s.graded ? `<span class="badge success">Graded: ${s.finalScore}/${s.totalMax}</span>` : `<span class="badge pending">Needs grading</span>`}
+            <a class="btn btn-sm" href="grade.html?id=${s._id}">${s.graded ? 'Review' : 'Grade'}</a>
+          </div>
+        </div>`).join('');
+    } catch (err) {
+      el.innerHTML = `<div class="warn-banner">${err.message}</div>`;
+    }
+  }
+
+  async function loadForGrading(subId) {
+    const body = document.getElementById('gradeBody');
+    let submission;
+    try {
+      const res = await Api.request(`/submissions/${subId}`);
+      submission = res.submission;
+    } catch (err) {
+      body.innerHTML = `<div class="warn-banner">${err.message}</div>`;
+      return;
+    }
+
+    const sqQuestions = submission.answers.filter(a => a.type === 'sq');
+    const mcqQuestions = submission.answers.filter(a => a.type === 'mcq');
+
+    let html = `
+      <div class="review-line"><strong>Candidate</strong><span>${escapeHtml(submission.candidateName)}</span></div>
+      <div class="review-line"><strong>Exam</strong><span>${escapeHtml(submission.examTitle)}</span></div>
+      <div class="review-line"><strong>Submitted</strong><span>${new Date(submission.submittedAt).toLocaleString()}${submission.autoSubmitted ? ' (auto)' : ''}</span></div>
+      <div class="review-line"><strong>MCQ score</strong><span>${submission.mcqScore} / ${submission.mcqMax}</span></div>
+    `;
+
+    if (mcqQuestions.length) {
+      html += '<h3 style="font-size:15px;margin:16px 0 8px;">Multiple choice</h3>';
+      html += mcqQuestions.map(a => {
+        const yourAns = a.selectedIndex === null || a.selectedIndex === undefined ? 'No answer' : escapeHtml(a.options[a.selectedIndex]);
+        return `<div class="review-line"><span>${escapeHtml(a.text)}</span><span style="color:${a.correct?'var(--success)':'var(--danger)'};font-weight:600;">${yourAns} ${a.correct?'✓':'✗'}</span></div>`;
+      }).join('');
+    }
+
+    if (sqQuestions.length) {
+      html += '<h3 style="font-size:15px;margin:16px 0 8px;">Short answer — award marks</h3>';
+      html += sqQuestions.map((a, i) => `
+        <div class="exam-q">
+          <strong>${escapeHtml(a.text)}</strong>
+          <div style="background:#F5F3ED;border:1px solid var(--line);border-radius:8px;padding:10px;margin:8px 0;font-size:13.5px;">
+            <strong>Candidate's answer:</strong> ${escapeHtml(a.answer || '(left blank)')}
+          </div>
+          ${a.referenceAnswer ? `<div class="muted" style="margin-bottom:8px;">Model answer: ${escapeHtml(a.referenceAnswer)}</div>` : ''}
+          <label>Marks (max ${a.points})</label>
+          <input type="number" min="0" max="${a.points}" value="${a.awardedMarks ?? 0}" id="mark_${a.questionId}" style="max-width:120px;">
+        </div>`).join('');
+    }
+
+    html += `
+      <h3 style="font-size:15px;margin:16px 0 8px;">Sign off</h3>
+      <label>Comments (optional, appears on the report)</label>
+      <textarea id="comments" rows="3">${escapeHtml(submission.examinerComments || '')}</textarea>
+      <label>Signature — draw below, or leave blank to sign with your typed name</label>
+      <canvas id="sigPad" class="sig-pad" width="400" height="120"></canvas>
+      <div class="row" style="margin-top:8px;">
+        <button class="btn btn-sm" id="clearSig" type="button">Clear signature</button>
+      </div>
+      ${submission.candidateEmail ? `
+      <label style="margin-top:14px;display:flex;align-items:center;gap:6px;font-weight:500;">
+        <input type="checkbox" id="sendEmail" style="width:auto;margin:0;" ${submission.reportEmailSent ? '' : 'checked'}>
+        Email the signed report to ${escapeHtml(submission.candidateEmail)}
+      </label>` : '<p class="muted">No candidate email on file — report will be available for download only.</p>'}
+      <div class="row" style="margin-top:16px;">
+        <button class="btn btn-primary" id="saveGradeBtn" type="button">${submission.graded ? 'Update grade' : 'Finalize grade'}</button>
+        ${submission.graded ? `<a class="btn" href="/api/submissions/${submission._id}/report.pdf" target="_blank">Download PDF report</a>` : ''}
+      </div>
+    `;
+    body.innerHTML = html;
+
+    // signature pad
+    const canvas = document.getElementById('sigPad');
+    const ctx = canvas.getContext('2d');
+    ctx.strokeStyle = '#8C5F22'; ctx.lineWidth = 2; ctx.lineCap = 'round';
+    let drawing = false, hasDrawn = false;
+    function pos(e) {
+      const r = canvas.getBoundingClientRect();
+      const t = e.touches ? e.touches[0] : e;
+      return { x: t.clientX - r.left, y: t.clientY - r.top };
+    }
+    function start(e) { drawing = true; hasDrawn = true; const p = pos(e); ctx.beginPath(); ctx.moveTo(p.x, p.y); e.preventDefault(); }
+    function move(e) { if (!drawing) return; const p = pos(e); ctx.lineTo(p.x, p.y); ctx.stroke(); e.preventDefault(); }
+    function end() { drawing = false; }
+    canvas.addEventListener('mousedown', start); canvas.addEventListener('mousemove', move); window.addEventListener('mouseup', end);
+    canvas.addEventListener('touchstart', start); canvas.addEventListener('touchmove', move); canvas.addEventListener('touchend', end);
+    document.getElementById('clearSig').addEventListener('click', () => { ctx.clearRect(0,0,canvas.width,canvas.height); hasDrawn = false; });
+
+    document.getElementById('saveGradeBtn').addEventListener('click', async () => {
+      const marks = {};
+      sqQuestions.forEach(a => {
+        const v = document.getElementById(`mark_${a.questionId}`).value;
+        marks[a.questionId] = Math.max(0, Math.min(a.points, parseFloat(v || '0')));
+      });
+      let signature = '';
+      if (hasDrawn) {
+        signature = canvas.toDataURL('image/png');
+      } else {
+        const typed = prompt('Type your name to sign this report:', Api.getUser()?.name || '');
+        if (typed === null) return;
+        signature = typed.trim();
+      }
+      const sendEmailEl = document.getElementById('sendEmail');
+      const msg = document.getElementById('gradeMsg');
+      msg.innerHTML = '';
+      try {
+        const res = await Api.request(`/submissions/${subId}/grade`, { method: 'PUT', body: {
+          marks,
+          examinerSignature: signature,
+          examinerComments: document.getElementById('comments').value,
+          sendEmail: sendEmailEl ? sendEmailEl.checked : false,
+        }});
+        let note = 'Grade saved.';
+        if (res.emailResult === 'sent') note += ' Report emailed to the candidate.';
+        if (res.emailResult === 'failed') note += ' The report could not be emailed — you can still download the PDF.';
+        msg.innerHTML = `<div class="ok-banner">${note}</div>`;
+        loadForGrading(subId);
+      } catch (err) {
+        msg.innerHTML = `<div class="warn-banner">${err.message}</div>`;
+      }
+    });
+  }
+}
+
+function escapeHtml(s) {
+  return String(s || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+</script>
+</body>
+</html>

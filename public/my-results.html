@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>My results — Examiner</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div class="topbar">
+  <strong>Examiner</strong>
+  <div class="nav">
+    <span class="navlink" id="whoami"></span>
+    <a class="navlink" href="#" id="logoutBtn">Log out</a>
+  </div>
+</div>
+<div class="shell">
+  <div class="card">
+    <h2>Take an exam</h2>
+    <p class="hint">Paste the exam code or link your examiner shared with you.</p>
+    <div class="row">
+      <input type="text" id="codeInput" placeholder="Exam code or link" style="flex:1;margin-bottom:0;">
+      <button class="btn btn-primary" id="goBtn" type="button">Go</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Your results</h2>
+    <p class="hint">Every exam you've taken, kept permanently in your account.</p>
+    <div id="subList">Loading…</div>
+  </div>
+</div>
+<script src="js/api.js"></script>
+<script>
+if (Api.requireLogin()) {
+  const user = Api.getUser();
+  document.getElementById('whoami').textContent = user ? user.name : '';
+  document.getElementById('logoutBtn').addEventListener('click', (e) => {
+    e.preventDefault(); Api.clearSession(); window.location.href = 'login.html';
+  });
+
+  document.getElementById('goBtn').addEventListener('click', () => {
+    const raw = document.getElementById('codeInput').value.trim();
+    if (!raw) return;
+    // accept either a bare code or a full take-exam.html?code=... link
+    let code = raw;
+    const match = raw.match(/[?&]code=([^&]+)/);
+    if (match) code = decodeURIComponent(match[1]);
+    window.location.href = `take-exam.html?code=${encodeURIComponent(code)}`;
+  });
+
+  (async () => {
+    const listEl = document.getElementById('subList');
+    try {
+      const { submissions } = await Api.request('/submissions/mine');
+      if (!submissions.length) {
+        listEl.innerHTML = '<p class="hint">You haven\'t taken any exams yet.</p>';
+        return;
+      }
+      listEl.innerHTML = submissions.map(s => `
+        <div class="list-item">
+          <div>
+            <strong>${escapeHtml(s.examTitle)}</strong>
+            <div class="muted">${new Date(s.submittedAt).toLocaleString()}${s.autoSubmitted ? ' · auto-submitted' : ''}</div>
+          </div>
+          <div class="row">
+            ${s.graded
+              ? `<span class="badge success">${s.finalScore} / ${s.totalMax}</span>
+                 <a class="btn btn-sm" href="/api/submissions/${s._id}/report.pdf" target="_blank">Download report</a>`
+              : `<span class="badge pending">Awaiting grading</span>`}
+          </div>
+        </div>`).join('');
+    } catch (err) {
+      listEl.innerHTML = `<div class="warn-banner">${err.message}</div>`;
+    }
+  })();
+}
+
+function escapeHtml(s) {
+  return String(s || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+</script>
+</body>
+</html>

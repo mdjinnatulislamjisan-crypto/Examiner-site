@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Take exam</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div class="topbar"><strong id="examTitleBar">Exam</strong><div class="nav"><span class="timer" id="timerDisplay"></span></div></div>
+<div class="shell">
+  <div id="entryView" class="card">
+    <h2 id="entryTitle">Loading…</h2>
+    <p class="hint" id="entryDesc"></p>
+    <div id="entryMsg"></div>
+    <div id="entryForm" style="display:none;">
+      <p class="hint">Taking this exam as <strong id="whoami"></strong>.</p>
+      <button class="btn btn-primary" id="startBtn" type="button">Start exam</button>
+    </div>
+  </div>
+
+  <div id="examView" class="card" style="display:none;">
+    <div id="examQuestions"></div>
+    <button class="btn btn-primary" id="submitBtn" type="button">Submit exam</button>
+  </div>
+
+  <div id="resultView" class="card" style="display:none;">
+    <h2>Submitted</h2>
+    <div id="resultBody"></div>
+    <a class="btn" href="my-results.html" style="margin-top:14px;">My results</a>
+  </div>
+</div>
+<script src="js/api.js"></script>
+<script>
+const params = new URLSearchParams(location.search);
+const code = params.get('code');
+
+if (Api.requireLogin('login.html')) {
+  const user = Api.getUser();
+  document.getElementById('whoami').textContent = user ? `${user.name} (${user.email})` : '';
+
+  let exam = null;
+  let answers = {};
+  let remainingSeconds = 0;
+  let timerId = null;
+
+  async function init() {
+    if (!code) {
+      document.getElementById('entryTitle').textContent = 'No exam specified';
+      return;
+    }
+    try {
+      exam = await Api.request(`/exams/public/${code}`);
+      document.getElementById('examTitleBar').textContent = exam.title;
+      document.getElementById('entryTitle').textContent = exam.title;
+      document.getElementById('entryDesc').textContent = exam.description || `${exam.questions.length} question(s) · ${exam.durationMinutes} minutes`;
+      document.getElementById('entryForm').style.display = 'block';
+    } catch (err) {
+      document.getElementById('entryTitle').textContent = 'Exam unavailable';
+      document.getElementById('entryMsg').innerHTML = `<div class="warn-banner">${err.message}</div>`;
+    }
+  }
+  init();
+
+  document.getElementById('startBtn').addEventListener('click', () => {
+    document.getElementById('entryView').style.display = 'none';
+    document.getElementById('examView').style.display = 'block';
+    remainingSeconds = exam.durationMinutes * 60;
+    renderQuestions();
+    tick();
+    timerId = setInterval(tick, 1000);
+  });
+
+  function tick() {
+    const el = document.getElementById('timerDisplay');
+    const m = Math.floor(remainingSeconds / 60), s = remainingSeconds % 60;
+    el.textContent = String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0');
+    el.classList.toggle('warn', remainingSeconds <= 60);
+    if (remainingSeconds <= 0) { clearInterval(timerId); submitExam(true); return; }
+    remainingSeconds--;
+  }
+
+  function renderQuestions() {
+    const wrap = document.getElementById('examQuestions');
+    const showPts = exam.settings.showPoints !== false;
+    wrap.innerHTML = exam.questions.map((q, i) => {
+      const pts = showPts ? `<div class="pts">${q.points} pt${q.points > 1 ? 's' : ''}</div>` : '';
+      if (q.type === 'mcq') {
+        const opts = q.options.map((opt, oi) => `
+          <label class="mcq-option" data-qid="${q.id}" data-oi="${oi}">
+            <input type="radio" name="ans_${q.id}"><span>${escapeHtml(opt)}</span>
+          </label>`).join('');
+        return `<div class="exam-q"><div class="qhead"><div class="qnum">${i+1}.</div><div>${escapeHtml(q.text)}</div>${pts}</div>${opts}</div>`;
+      }
+      return `<div class="exam-q"><div class="qhead"><div class="qnum">${i+1}.</div><div>${escapeHtml(q.text)}</div>${pts}</div>
+        <textarea data-qid="${q.id}" placeholder="Write your answer..." style="min-height:100px;"></textarea></div>`;
+    }).join('');
+
+    wrap.querySelectorAll('.mcq-option').forEach(lbl => lbl.addEventListener('click', () => {
+      const qid = lbl.dataset.qid;
+      wrap.querySelectorAll(`.mcq-option[data-qid="${qid}"]`).forEach(o => o.classList.remove('checked'));
+      lbl.classList.add('checked');
+      answers[qid] = parseInt(lbl.dataset.oi, 10);
+    }));
+    wrap.querySelectorAll('textarea[data-qid]').forEach(ta => ta.addEventListener('input', () => answers[ta.dataset.qid] = ta.value));
+  }
+
+  document.getElementById('submitBtn').addEventListener('click', () => {
+    if (confirm('Submit the exam now? You cannot change answers afterward.')) submitExam(false);
+  });
+
+  async function submitExam(auto) {
+    if (timerId) clearInterval(timerId);
+    try {
+      const data = await Api.request(`/submissions/${code}/submit`, { method: 'POST', body: {
+        answers, autoSubmitted: auto,
+      }});
+      document.getElementById('examView').style.display = 'none';
+      document.getElementById('resultView').style.display = 'block';
+      let html = '';
+      if (auto) html += '<div class="warn-banner">Time ran out — your exam was submitted automatically.</div>';
+      if (data.showScore) {
+        html += `<p><strong>Multiple-choice score:</strong> ${data.mcqScore} / ${data.mcqMax}</p>`;
+        if (data.pendingReview) html += '<p class="hint">Short-answer questions are pending examiner review. Your final score and signed report will appear on My Results once grading is complete.</p>';
+      } else {
+        html += '<p class="hint">Your results will be released by the examiner.</p>';
+      }
+      if (data.answers) {
+        html += '<h3 style="font-size:15px;margin-top:16px;">Your answers</h3>';
+        html += data.answers.map((a, i) => {
+          if (a.type === 'mcq') {
+            const yourAns = a.selectedIndex === null ? 'No answer' : escapeHtml(a.options[a.selectedIndex]);
+            const rightAns = escapeHtml(a.options[a.correctIndex]);
+            return `<div class="review-line"><span>${i+1}. ${escapeHtml(a.text)}</span><span style="color:${a.correct?'var(--success)':'var(--danger)'};font-weight:600;">${yourAns}${a.correct?' ✓':' ✗ — correct: '+rightAns}</span></div>`;
+          }
+          return `<div class="review-line" style="display:block;"><strong>${i+1}. ${escapeHtml(a.text)}</strong><div style="margin-top:4px;font-size:13px;">Your answer: ${escapeHtml(a.answer||'(left blank)')}</div></div>`;
+        }).join('');
+      }
+      document.getElementById('resultBody').innerHTML = html;
+    } catch (err) {
+      alert('Could not submit: ' + err.message + '\nPlease try again — your answers are still on this page.');
+    }
+  }
+}
+
+function escapeHtml(s) {
+  return String(s || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+</script>
+</body>
+</html>

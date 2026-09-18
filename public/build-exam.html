@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Build exam — Examiner</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div class="topbar">
+  <strong>Examiner</strong>
+  <div class="nav"><a class="navlink" href="dashboard.html">← Dashboard</a></div>
+</div>
+<div class="shell">
+  <div class="card">
+    <h2 id="pageTitle">Build a new exam</h2>
+    <div id="msg"></div>
+    <label>Exam title</label>
+    <input type="text" id="title" placeholder="e.g. Midterm — Introduction to Biology">
+    <label>Description (optional, shown to candidates)</label>
+    <textarea id="description" rows="2"></textarea>
+    <div class="row">
+      <div style="flex:1;">
+        <label>Duration (minutes)</label>
+        <input type="number" id="duration" value="30" min="1">
+      </div>
+    </div>
+    <div class="row" style="margin-bottom:14px;">
+      <label style="display:flex;align-items:center;gap:6px;font-weight:500;"><input type="checkbox" id="showScore" checked style="width:auto;margin:0;"> Show MCQ score immediately after submit</label>
+      <label style="display:flex;align-items:center;gap:6px;font-weight:500;"><input type="checkbox" id="showPoints" checked style="width:auto;margin:0;"> Show points per question</label>
+      <label style="display:flex;align-items:center;gap:6px;font-weight:500;"><input type="checkbox" id="revealAnswers" style="width:auto;margin:0;"> Reveal correct answers after submit</label>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Questions</h2>
+    <div id="questionList"></div>
+    <div class="row" style="margin-top:10px;">
+      <button class="btn" id="addMcq" type="button">+ Multiple choice</button>
+      <button class="btn" id="addSq" type="button">+ Short answer</button>
+    </div>
+  </div>
+
+  <button class="btn btn-primary" id="saveBtn" type="button">Save exam</button>
+</div>
+<script src="js/api.js"></script>
+<script>
+if (Api.requireLogin()) {
+  if (Api.getUser() && Api.getUser().role !== 'examiner') { window.location.href = 'my-results.html'; }
+  let questions = [];
+  const params = new URLSearchParams(location.search);
+  const editId = params.get('id');
+
+  function addQuestion(type) {
+    questions.push(type === 'mcq'
+      ? { type: 'mcq', text: '', points: 1, options: ['', ''], correctIndex: 0 }
+      : { type: 'sq', text: '', points: 1, referenceAnswer: '' });
+    render();
+  }
+  document.getElementById('addMcq').addEventListener('click', () => addQuestion('mcq'));
+  document.getElementById('addSq').addEventListener('click', () => addQuestion('sq'));
+
+  function render() {
+    const wrap = document.getElementById('questionList');
+    wrap.innerHTML = questions.map((q, i) => {
+      if (q.type === 'mcq') {
+        const opts = q.options.map((o, oi) => `
+          <div class="row" style="margin-bottom:6px;">
+            <input type="radio" name="correct_${i}" ${q.correctIndex === oi ? 'checked' : ''} data-qi="${i}" data-oi="${oi}" class="correctRadio" style="width:auto;">
+            <input type="text" value="${escapeAttr(o)}" placeholder="Option ${oi + 1}" data-qi="${i}" data-oi="${oi}" class="optText" style="margin-bottom:0;flex:1;">
+            <button class="btn btn-sm" data-qi="${i}" data-oi="${oi}" data-action="removeOpt" type="button">✕</button>
+          </div>`).join('');
+        return `<div class="exam-q">
+          <div class="qhead"><div class="qnum">${i + 1}.</div><span class="badge pending">MCQ</span>
+            <button class="btn btn-sm btn-danger" style="margin-left:auto;" data-qi="${i}" data-action="removeQ" type="button">Remove</button>
+          </div>
+          <textarea placeholder="Question text" data-qi="${i}" class="qText" style="margin-bottom:8px;">${escapeAttr(q.text)}</textarea>
+          ${opts}
+          <div class="row">
+            <button class="btn btn-sm" data-qi="${i}" data-action="addOpt" type="button">+ Option</button>
+            <label style="margin:0;">Points <input type="number" min="1" value="${q.points}" data-qi="${i}" class="qPoints" style="width:70px;margin:0 0 0 6px;"></label>
+          </div>
+        </div>`;
+      } else {
+        return `<div class="exam-q">
+          <div class="qhead"><div class="qnum">${i + 1}.</div><span class="badge success">Short answer</span>
+            <button class="btn btn-sm btn-danger" style="margin-left:auto;" data-qi="${i}" data-action="removeQ" type="button">Remove</button>
+          </div>
+          <textarea placeholder="Question text" data-qi="${i}" class="qText" style="margin-bottom:8px;">${escapeAttr(q.text)}</textarea>
+          <label>Model / reference answer (shown only to the examiner when grading)</label>
+          <textarea placeholder="Optional" data-qi="${i}" class="qRef" style="margin-bottom:8px;">${escapeAttr(q.referenceAnswer || '')}</textarea>
+          <label style="display:inline;">Points <input type="number" min="1" value="${q.points}" data-qi="${i}" class="qPoints" style="width:70px;display:inline-block;margin-left:6px;"></label>
+        </div>`;
+      }
+    }).join('') || '<p class="hint">No questions yet — add one below.</p>';
+
+    wrap.querySelectorAll('.qText').forEach(el => el.addEventListener('input', () => questions[el.dataset.qi].text = el.value));
+    wrap.querySelectorAll('.qRef').forEach(el => el.addEventListener('input', () => questions[el.dataset.qi].referenceAnswer = el.value));
+    wrap.querySelectorAll('.qPoints').forEach(el => el.addEventListener('input', () => questions[el.dataset.qi].points = parseInt(el.value || '1', 10)));
+    wrap.querySelectorAll('.optText').forEach(el => el.addEventListener('input', () => questions[el.dataset.qi].options[el.dataset.oi] = el.value));
+    wrap.querySelectorAll('.correctRadio').forEach(el => el.addEventListener('change', () => questions[el.dataset.qi].correctIndex = parseInt(el.dataset.oi, 10)));
+    wrap.querySelectorAll('[data-action="removeQ"]').forEach(el => el.addEventListener('click', () => { questions.splice(el.dataset.qi, 1); render(); }));
+    wrap.querySelectorAll('[data-action="addOpt"]').forEach(el => el.addEventListener('click', () => { questions[el.dataset.qi].options.push(''); render(); }));
+    wrap.querySelectorAll('[data-action="removeOpt"]').forEach(el => el.addEventListener('click', () => {
+      const q = questions[el.dataset.qi];
+      if (q.options.length <= 2) return alert('MCQ needs at least 2 options.');
+      q.options.splice(el.dataset.oi, 1);
+      if (q.correctIndex >= q.options.length) q.correctIndex = 0;
+      render();
+    }));
+  }
+  render();
+
+  async function loadForEdit() {
+    if (!editId) return;
+    document.getElementById('pageTitle').textContent = 'Edit exam';
+    try {
+      const { exam } = await Api.request(`/exams/${editId}`);
+      document.getElementById('title').value = exam.title;
+      document.getElementById('description').value = exam.description || '';
+      document.getElementById('duration').value = exam.durationMinutes;
+      document.getElementById('showScore').checked = exam.settings.showScore;
+      document.getElementById('showPoints').checked = exam.settings.showPoints;
+      document.getElementById('revealAnswers').checked = exam.settings.revealAnswers;
+      questions = exam.questions.map(q => ({ ...q }));
+      render();
+    } catch (err) {
+      document.getElementById('msg').innerHTML = `<div class="warn-banner">${err.message}</div>`;
+    }
+  }
+  loadForEdit();
+
+  document.getElementById('saveBtn').addEventListener('click', async () => {
+    const msg = document.getElementById('msg');
+    msg.innerHTML = '';
+    const payload = {
+      title: document.getElementById('title').value,
+      description: document.getElementById('description').value,
+      durationMinutes: parseInt(document.getElementById('duration').value || '30', 10),
+      settings: {
+        showScore: document.getElementById('showScore').checked,
+        showPoints: document.getElementById('showPoints').checked,
+        revealAnswers: document.getElementById('revealAnswers').checked,
+      },
+      questions,
+    };
+    try {
+      if (editId) {
+        await Api.request(`/exams/${editId}`, { method: 'PUT', body: payload });
+      } else {
+        await Api.request('/exams', { method: 'POST', body: payload });
+      }
+      window.location.href = 'dashboard.html';
+    } catch (err) {
+      msg.innerHTML = `<div class="warn-banner">${err.message}</div>`;
+    }
+  });
+}
+
+function escapeAttr(s) {
+  return String(s || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+</script>
+</body>
+</html>

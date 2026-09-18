@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dashboard — Examiner</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div class="topbar">
+  <strong>Examiner</strong>
+  <div class="nav">
+    <span class="navlink" id="whoami"></span>
+    <a class="navlink" href="build-exam.html">+ New exam</a>
+    <a class="navlink" href="grade.html">Grading</a>
+    <a class="navlink" href="#" id="logoutBtn">Log out</a>
+  </div>
+</div>
+<div class="shell">
+  <div class="card">
+    <h2>Your exams</h2>
+    <p class="hint">Share an exam's link with candidates. Submissions come back to your grading queue automatically.</p>
+    <div id="examList">Loading…</div>
+  </div>
+</div>
+<script src="js/api.js"></script>
+<script>
+if (Api.requireLogin()) {
+  const user = Api.getUser();
+  if (user && user.role !== 'examiner') { window.location.href = 'my-results.html'; }
+  document.getElementById('whoami').textContent = user ? user.name : '';
+  document.getElementById('logoutBtn').addEventListener('click', (e) => {
+    e.preventDefault(); Api.clearSession(); window.location.href = 'login.html';
+  });
+
+  (async () => {
+    const listEl = document.getElementById('examList');
+    try {
+      const { exams } = await Api.request('/exams');
+      if (!exams.length) {
+        listEl.innerHTML = '<p class="hint">No exams yet. <a href="build-exam.html">Create your first one</a>.</p>';
+        return;
+      }
+      listEl.innerHTML = exams.map(ex => {
+        const link = `${location.origin}/take-exam.html?code=${ex.accessCode}`;
+        return `<div class="list-item">
+          <div>
+            <strong>${escapeHtml(ex.title)}</strong>
+            <div class="muted">${ex.questions.length} question(s) · ${ex.durationMinutes} min</div>
+            <div class="muted" style="margin-top:4px;">
+              <code>${link}</code>
+              <button class="btn btn-sm" data-copy="${link}">Copy link</button>
+            </div>
+          </div>
+          <div class="row">
+            <a class="btn btn-sm" href="build-exam.html?id=${ex._id}">Edit</a>
+            <button class="btn btn-sm btn-danger" data-archive="${ex._id}">Archive</button>
+          </div>
+        </div>`;
+      }).join('');
+
+      listEl.querySelectorAll('[data-copy]').forEach(btn => {
+        btn.addEventListener('click', () => {
+          navigator.clipboard.writeText(btn.dataset.copy);
+          btn.textContent = 'Copied!';
+          setTimeout(() => btn.textContent = 'Copy link', 1200);
+        });
+      });
+      listEl.querySelectorAll('[data-archive]').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          if (!confirm('Archive this exam? It will stop accepting new submissions. Existing submissions and reports are kept.')) return;
+          await Api.request(`/exams/${btn.dataset.archive}`, { method: 'DELETE' });
+          location.reload();
+        });
+      });
+    } catch (err) {
+      listEl.innerHTML = `<div class="warn-banner">${err.message}</div>`;
+    }
+  })();
+}
+
+function escapeHtml(s) {
+  return String(s || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+</script>
+</body>
+</html>

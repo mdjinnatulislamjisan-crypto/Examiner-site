@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Create account — Examiner</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div class="topbar"><strong>Examiner</strong><div class="nav"><a class="navlink" href="login.html">Log in</a></div></div>
+<div class="shell narrow">
+  <div class="card">
+    <h2>Create an account</h2>
+    <p class="hint">Candidates take exams and keep a history of their results. Examiners build, share and grade exams.</p>
+    <div id="msg"></div>
+    <form id="regForm">
+      <label>I am a…</label>
+      <div class="row" style="margin-bottom:14px;">
+        <label style="display:flex;align-items:center;gap:6px;font-weight:500;margin:0;">
+          <input type="radio" name="role" value="candidate" checked style="width:auto;margin:0;"> Candidate (taking exams)
+        </label>
+        <label style="display:flex;align-items:center;gap:6px;font-weight:500;margin:0;">
+          <input type="radio" name="role" value="examiner" style="width:auto;margin:0;"> Examiner (creating exams)
+        </label>
+      </div>
+      <label>Full name</label>
+      <input type="text" id="name" required>
+      <label>Email</label>
+      <input type="email" id="email" required>
+      <label>Password</label>
+      <input type="password" id="password" minlength="8" required>
+      <p class="muted" style="margin-top:-8px;">At least 8 characters.</p>
+      <button class="btn btn-primary btn-block" type="submit">Create account</button>
+    </form>
+    <p class="hint" style="margin-top:14px;">Already have an account? <a href="login.html" id="loginLink">Log in</a></p>
+  </div>
+</div>
+<script src="js/api.js"></script>
+<script>
+const params = new URLSearchParams(location.search);
+const next = params.get('next');
+if (next) document.getElementById('loginLink').href = 'login.html?next=' + encodeURIComponent(next);
+
+document.getElementById('regForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const msg = document.getElementById('msg');
+  msg.innerHTML = '';
+  try {
+    const data = await Api.request('/auth/register', { auth: false, method: 'POST', body: {
+      name: document.getElementById('name').value,
+      email: document.getElementById('email').value,
+      password: document.getElementById('password').value,
+      role: document.querySelector('input[name=role]:checked').value,
+    }});
+    Api.setSession(data.token, data.user);
+    window.location.href = next ? decodeURIComponent(next) : Api.homeFor(data.user);
+  } catch (err) {
+    msg.innerHTML = `<div class="warn-banner">${err.message}</div>`;
+  }
+});
+</script>
+</body>
+</html>
