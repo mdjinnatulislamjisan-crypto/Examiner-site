@@ -10,6 +10,7 @@ const examRoutes = require('./routes/exams');
 const submissionRoutes = require('./routes/submissions');
 
 const app = express();
+app.set('trust proxy', 1);
 
 app.use(cors());
 app.use(express.json({ limit: '2mb' })); // signatures are small base64 images, keep a sane cap
