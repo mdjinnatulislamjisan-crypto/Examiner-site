@@ -7,7 +7,10 @@
 <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
-<div class="topbar"><strong id="examTitleBar">Exam</strong><div class="nav"><span class="timer" id="timerDisplay"></span></div></div>
+<div class="topbar">
+  <div class="brand" style="pointer-events:none;"><div class="brand-mark"><svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M12 3L3 7.5L12 12L21 7.5L12 3Z" stroke="#1B1204" stroke-width="1.7" stroke-linejoin="round"/><path d="M6 10.3V15.8C6 15.8 8 18.3 12 18.3C16 18.3 18 15.8 18 15.8V10.3" stroke="#1B1204" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/><path d="M21 7.5V13" stroke="#1B1204" stroke-width="1.7" stroke-linecap="round"/></svg></div><span class="brand-name" id="examTitleBar">Exam</span></div>
+  <div class="nav"><span class="timer" id="timerDisplay"></span></div>
+</div>
 <div class="shell">
   <div id="entryView" class="card">
     <h2 id="entryTitle">Loading…</h2>
@@ -15,13 +18,13 @@
     <div id="entryMsg"></div>
     <div id="entryForm" style="display:none;">
       <p class="hint">Taking this exam as <strong id="whoami"></strong>.</p>
-      <button class="btn btn-primary" id="startBtn" type="button">Start exam</button>
+      <button class="btn btn-primary btn-lg" id="startBtn" type="button">Start exam</button>
     </div>
   </div>
 
   <div id="examView" class="card" style="display:none;">
     <div id="examQuestions"></div>
-    <button class="btn btn-primary" id="submitBtn" type="button">Submit exam</button>
+    <button class="btn btn-primary btn-lg btn-block" id="submitBtn" type="button">Submit exam</button>
   </div>
 
   <div id="resultView" class="card" style="display:none;">

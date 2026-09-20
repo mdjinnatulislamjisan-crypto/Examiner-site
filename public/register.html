@@ -7,7 +7,10 @@
 <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
-<div class="topbar"><strong>Examiner</strong><div class="nav"><a class="navlink" href="login.html">Log in</a></div></div>
+<div class="topbar">
+  <a class="brand" href="index.html"><div class="brand-mark"><svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M12 3L3 7.5L12 12L21 7.5L12 3Z" stroke="#1B1204" stroke-width="1.7" stroke-linejoin="round"/><path d="M6 10.3V15.8C6 15.8 8 18.3 12 18.3C16 18.3 18 15.8 18 15.8V10.3" stroke="#1B1204" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/><path d="M21 7.5V13" stroke="#1B1204" stroke-width="1.7" stroke-linecap="round"/></svg></div><span class="brand-name">Examiner</span></a>
+  <div class="nav"><a class="navlink" href="login.html">Log in</a></div>
+</div>
 <div class="shell narrow">
   <div class="card">
     <h2>Create an account</h2>
@@ -15,12 +18,16 @@
     <div id="msg"></div>
     <form id="regForm">
       <label>I am a…</label>
-      <div class="row" style="margin-bottom:14px;">
-        <label style="display:flex;align-items:center;gap:6px;font-weight:500;margin:0;">
-          <input type="radio" name="role" value="candidate" checked style="width:auto;margin:0;"> Candidate (taking exams)
+      <div class="role-picker" style="display:flex;gap:10px;margin-bottom:16px;">
+        <label class="role-card" data-role="candidate">
+          <input type="radio" name="role" value="candidate" checked style="position:absolute;opacity:0;">
+          <strong>Candidate</strong>
+          <span>Taking exams</span>
         </label>
-        <label style="display:flex;align-items:center;gap:6px;font-weight:500;margin:0;">
-          <input type="radio" name="role" value="examiner" style="width:auto;margin:0;"> Examiner (creating exams)
+        <label class="role-card" data-role="examiner">
+          <input type="radio" name="role" value="examiner" style="position:absolute;opacity:0;">
+          <strong>Examiner</strong>
+          <span>Creating &amp; grading exams</span>
         </label>
       </div>
       <label>Full name</label>
@@ -30,11 +37,21 @@
       <label>Password</label>
       <input type="password" id="password" minlength="8" required>
       <p class="muted" style="margin-top:-8px;">At least 8 characters.</p>
-      <button class="btn btn-primary btn-block" type="submit">Create account</button>
+      <button class="btn btn-primary btn-block btn-lg" type="submit">Create account</button>
     </form>
     <p class="hint" style="margin-top:14px;">Already have an account? <a href="login.html" id="loginLink">Log in</a></p>
   </div>
 </div>
+<style>
+.role-card {
+  flex: 1; position: relative; cursor: pointer; text-align: center;
+  border: 1.5px solid var(--line); border-radius: var(--radius-sm); padding: 14px 10px;
+  display: flex; flex-direction: column; gap: 2px; transition: all .12s; background: var(--surface-alt);
+}
+.role-card strong { font-family: 'Lora', serif; color: var(--ink); font-size: 14.5px; }
+.role-card span { font-size: 11.5px; color: var(--text-soft); }
+.role-card:has(input:checked) { border-color: var(--accent); background: var(--accent-tint); box-shadow: 0 0 0 1px var(--accent); }
+</style>
 <script src="js/api.js"></script>
 <script>
 const params = new URLSearchParams(location.search);

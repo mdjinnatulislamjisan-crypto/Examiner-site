@@ -4,11 +4,13 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Dashboard — Examiner</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Lora:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
 <div class="topbar">
-  <strong>Examiner</strong>
+  <a class="brand" href="dashboard.html"><div class="brand-mark"><svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M12 3L3 7.5L12 12L21 7.5L12 3Z" stroke="#1B1204" stroke-width="1.7" stroke-linejoin="round"/><path d="M6 10.3V15.8C6 15.8 8 18.3 12 18.3C16 18.3 18 15.8 18 15.8V10.3" stroke="#1B1204" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/><path d="M21 7.5V13" stroke="#1B1204" stroke-width="1.7" stroke-linecap="round"/></svg></div><span class="brand-name">Examiner</span></a>
   <div class="nav">
     <span class="navlink" id="whoami"></span>
     <a class="navlink" href="build-exam.html">+ New exam</a>
@@ -17,10 +19,12 @@
   </div>
 </div>
 <div class="shell">
-  <div class="card">
-    <h2>Your exams</h2>
+  <div class="page-head">
+    <h1>Your exams</h1>
     <p class="hint">Share an exam's link with candidates. Submissions come back to your grading queue automatically.</p>
-    <div id="examList">Loading…</div>
+  </div>
+  <div class="card card-flush">
+    <div id="examList" style="padding:20px 26px;">Loading…</div>
   </div>
 </div>
 <script src="js/api.js"></script>
@@ -28,7 +32,7 @@
 if (Api.requireLogin()) {
   const user = Api.getUser();
   if (user && user.role !== 'examiner') { window.location.href = 'my-results.html'; }
-  document.getElementById('whoami').textContent = user ? user.name : '';
+  document.getElementById('whoami').innerHTML = user ? `${escapeHtml(user.name)} <span class="role-pill">Examiner</span>` : '';
   document.getElementById('logoutBtn').addEventListener('click', (e) => {
     e.preventDefault(); Api.clearSession(); window.location.href = 'login.html';
   });
@@ -38,17 +42,18 @@ if (Api.requireLogin()) {
     try {
       const { exams } = await Api.request('/exams');
       if (!exams.length) {
-        listEl.innerHTML = '<p class="hint">No exams yet. <a href="build-exam.html">Create your first one</a>.</p>';
+        listEl.innerHTML = '<p class="hint" style="margin:0;">No exams yet. <a href="build-exam.html">Create your first one</a>.</p>';
         return;
       }
+      listEl.style.padding = '0';
       listEl.innerHTML = exams.map(ex => {
         const link = `${location.origin}/take-exam.html?code=${ex.accessCode}`;
         return `<div class="list-item">
           <div>
             <strong>${escapeHtml(ex.title)}</strong>
             <div class="muted">${ex.questions.length} question(s) · ${ex.durationMinutes} min</div>
-            <div class="muted" style="margin-top:4px;">
-              <code>${link}</code>
+            <div class="muted" style="margin-top:6px;display:flex;align-items:center;gap:8px;">
+              <code style="background:var(--surface-alt);padding:3px 8px;border-radius:6px;font-size:12px;">${link}</code>
               <button class="btn btn-sm" data-copy="${link}">Copy link</button>
             </div>
           </div>

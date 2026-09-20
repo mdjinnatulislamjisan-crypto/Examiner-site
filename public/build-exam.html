@@ -8,7 +8,7 @@
 </head>
 <body>
 <div class="topbar">
-  <strong>Examiner</strong>
+  <a class="brand" href="dashboard.html"><div class="brand-mark"><svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M12 3L3 7.5L12 12L21 7.5L12 3Z" stroke="#1B1204" stroke-width="1.7" stroke-linejoin="round"/><path d="M6 10.3V15.8C6 15.8 8 18.3 12 18.3C16 18.3 18 15.8 18 15.8V10.3" stroke="#1B1204" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/><path d="M21 7.5V13" stroke="#1B1204" stroke-width="1.7" stroke-linecap="round"/></svg></div><span class="brand-name">Examiner</span></a>
   <div class="nav"><a class="navlink" href="dashboard.html">← Dashboard</a></div>
 </div>
 <div class="shell">
@@ -26,9 +26,9 @@
       </div>
     </div>
     <div class="row" style="margin-bottom:14px;">
-      <label style="display:flex;align-items:center;gap:6px;font-weight:500;"><input type="checkbox" id="showScore" checked style="width:auto;margin:0;"> Show MCQ score immediately after submit</label>
-      <label style="display:flex;align-items:center;gap:6px;font-weight:500;"><input type="checkbox" id="showPoints" checked style="width:auto;margin:0;"> Show points per question</label>
-      <label style="display:flex;align-items:center;gap:6px;font-weight:500;"><input type="checkbox" id="revealAnswers" style="width:auto;margin:0;"> Reveal correct answers after submit</label>
+      <label class="field-check"><input type="checkbox" id="showScore" checked> Show MCQ score immediately after submit</label>
+      <label class="field-check"><input type="checkbox" id="showPoints" checked> Show points per question</label>
+      <label class="field-check"><input type="checkbox" id="revealAnswers"> Reveal correct answers after submit</label>
     </div>
   </div>
 
@@ -41,7 +41,7 @@
     </div>
   </div>
 
-  <button class="btn btn-primary" id="saveBtn" type="button">Save exam</button>
+  <button class="btn btn-primary btn-lg" id="saveBtn" type="button">Save exam</button>
 </div>
 <script src="js/api.js"></script>
 <script>

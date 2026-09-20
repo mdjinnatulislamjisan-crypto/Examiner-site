@@ -4,21 +4,33 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Grading — Examiner</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Lora:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
-<div class="topbar"><strong>Examiner</strong><div class="nav"><a class="navlink" href="dashboard.html">← Dashboard</a></div></div>
+<div class="topbar">
+  <a class="brand" href="dashboard.html"><div class="brand-mark"><svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M12 3L3 7.5L12 12L21 7.5L12 3Z" stroke="#1B1204" stroke-width="1.7" stroke-linejoin="round"/><path d="M6 10.3V15.8C6 15.8 8 18.3 12 18.3C16 18.3 18 15.8 18 15.8V10.3" stroke="#1B1204" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/><path d="M21 7.5V13" stroke="#1B1204" stroke-width="1.7" stroke-linecap="round"/></svg></div><span class="brand-name">Examiner</span></a>
+  <div class="nav"><a class="navlink" href="dashboard.html">← Dashboard</a></div>
+</div>
 <div class="shell">
-  <div id="listCard" class="card">
-    <h2>Submissions</h2>
-    <p class="hint">Every submission is kept permanently, graded or not.</p>
-    <div id="subList">Loading…</div>
+  <div id="listCard">
+    <div class="page-head">
+      <h1>Grading</h1>
+      <p class="hint">Every submission is kept permanently, graded or not.</p>
+    </div>
+    <div class="card card-flush">
+      <div id="subList" style="padding:20px 26px;">Loading…</div>
+    </div>
   </div>
 
-  <div id="gradeCard" class="card" style="display:none;">
-    <h2>Grade submission</h2>
+  <div id="gradeWrap" style="display:none;">
+    <div class="page-head">
+      <a href="grade.html" class="hint" style="display:inline-block;margin-bottom:8px;">← All submissions</a>
+      <h1>Grade submission</h1>
+    </div>
     <div id="gradeMsg"></div>
-    <div id="gradeBody"></div>
+    <div class="card" id="gradeBody"></div>
   </div>
 </div>
 <script src="js/api.js"></script>
@@ -30,7 +42,7 @@ if (Api.requireLogin()) {
 
   if (id) {
     document.getElementById('listCard').style.display = 'none';
-    document.getElementById('gradeCard').style.display = 'block';
+    document.getElementById('gradeWrap').style.display = 'block';
     loadForGrading(id);
   } else {
     loadList();
@@ -40,7 +52,8 @@ if (Api.requireLogin()) {
     const el = document.getElementById('subList');
     try {
       const { submissions } = await Api.request('/submissions');
-      if (!submissions.length) { el.innerHTML = '<p class="hint">No submissions yet.</p>'; return; }
+      if (!submissions.length) { el.innerHTML = '<p class="hint" style="margin:0;">No submissions yet.</p>'; return; }
+      el.style.padding = '0';
       el.innerHTML = submissions.map(s => `
         <div class="list-item">
           <div>
@@ -59,6 +72,8 @@ if (Api.requireLogin()) {
 
   async function loadForGrading(subId) {
     const body = document.getElementById('gradeBody');
+    const topMsg = document.getElementById('gradeMsg');
+    topMsg.innerHTML = '';
     let submission;
     try {
       const res = await Api.request(`/submissions/${subId}`);
@@ -72,89 +87,114 @@ if (Api.requireLogin()) {
     const mcqQuestions = submission.answers.filter(a => a.type === 'mcq');
 
     let html = `
-      <div class="review-line"><strong>Candidate</strong><span>${escapeHtml(submission.candidateName)}</span></div>
+      <div class="review-line"><strong>Candidate</strong><span>${escapeHtml(submission.candidateName)} (${escapeHtml(submission.candidateEmail || 'no email')})</span></div>
       <div class="review-line"><strong>Exam</strong><span>${escapeHtml(submission.examTitle)}</span></div>
-      <div class="review-line"><strong>Submitted</strong><span>${new Date(submission.submittedAt).toLocaleString()}${submission.autoSubmitted ? ' (auto)' : ''}</span></div>
+      <div class="review-line"><strong>Submitted</strong><span>${new Date(submission.submittedAt).toLocaleString()}${submission.autoSubmitted ? ' (auto-submitted)' : ''}</span></div>
       <div class="review-line"><strong>MCQ score</strong><span>${submission.mcqScore} / ${submission.mcqMax}</span></div>
     `;
 
     if (mcqQuestions.length) {
-      html += '<h3 style="font-size:15px;margin:16px 0 8px;">Multiple choice</h3>';
+      html += '<div class="section-title">Multiple choice</div>';
       html += mcqQuestions.map(a => {
         const yourAns = a.selectedIndex === null || a.selectedIndex === undefined ? 'No answer' : escapeHtml(a.options[a.selectedIndex]);
-        return `<div class="review-line"><span>${escapeHtml(a.text)}</span><span style="color:${a.correct?'var(--success)':'var(--danger)'};font-weight:600;">${yourAns} ${a.correct?'✓':'✗'}</span></div>`;
+        return `<div class="review-line"><span>${escapeHtml(a.text)}</span><span style="color:${a.correct?'var(--success)':'var(--danger)'};font-weight:600;white-space:nowrap;">${yourAns} ${a.correct?'✓':'✗'}</span></div>`;
       }).join('');
     }
 
     if (sqQuestions.length) {
-      html += '<h3 style="font-size:15px;margin:16px 0 8px;">Short answer — award marks</h3>';
-      html += sqQuestions.map((a, i) => `
+      html += '<div class="section-title">Short answer — award marks</div>';
+      html += sqQuestions.map((a) => `
         <div class="exam-q">
           <strong>${escapeHtml(a.text)}</strong>
-          <div style="background:#F5F3ED;border:1px solid var(--line);border-radius:8px;padding:10px;margin:8px 0;font-size:13.5px;">
-            <strong>Candidate's answer:</strong> ${escapeHtml(a.answer || '(left blank)')}
-          </div>
-          ${a.referenceAnswer ? `<div class="muted" style="margin-bottom:8px;">Model answer: ${escapeHtml(a.referenceAnswer)}</div>` : ''}
+          <div class="answer-box"><strong>Candidate's answer:</strong> ${escapeHtml(a.answer || '(left blank)')}</div>
+          ${a.referenceAnswer ? `<div class="muted" style="margin-bottom:10px;">Model answer: ${escapeHtml(a.referenceAnswer)}</div>` : ''}
           <label>Marks (max ${a.points})</label>
-          <input type="number" min="0" max="${a.points}" value="${a.awardedMarks ?? 0}" id="mark_${a.questionId}" style="max-width:120px;">
+          <input type="number" min="0" max="${a.points}" step="0.5" value="${a.awardedMarks ?? 0}" id="mark_${a.questionId}" style="max-width:120px;margin-bottom:0;">
         </div>`).join('');
     }
 
     html += `
-      <h3 style="font-size:15px;margin:16px 0 8px;">Sign off</h3>
+      <div class="section-title">Sign off</div>
       <label>Comments (optional, appears on the report)</label>
-      <textarea id="comments" rows="3">${escapeHtml(submission.examinerComments || '')}</textarea>
-      <label>Signature — draw below, or leave blank to sign with your typed name</label>
-      <canvas id="sigPad" class="sig-pad" width="400" height="120"></canvas>
-      <div class="row" style="margin-top:8px;">
-        <button class="btn btn-sm" id="clearSig" type="button">Clear signature</button>
+      <textarea id="comments" rows="3" placeholder="Optional feedback for the candidate">${escapeHtml(submission.examinerComments || '')}</textarea>
+
+      <label>Signature</label>
+      <p class="hint" style="margin-top:-2px;">Draw your signature below, or type your name instead — one of the two is required.</p>
+      <canvas id="sigPad" class="sig-pad" width="420" height="130"></canvas>
+      <div class="row" style="margin-top:8px;margin-bottom:14px;">
+        <button class="btn btn-sm btn-ghost" id="clearSig" type="button">Clear drawing</button>
+        <span class="muted">— or —</span>
+        <input type="text" id="typedSignature" placeholder="Type your name to sign" style="flex:1;min-width:180px;margin-bottom:0;" value="${submission.examinerSignature && !submission.examinerSignature.startsWith('data:image') ? escapeAttr(submission.examinerSignature) : ''}">
       </div>
+
       ${submission.candidateEmail ? `
-      <label style="margin-top:14px;display:flex;align-items:center;gap:6px;font-weight:500;">
-        <input type="checkbox" id="sendEmail" style="width:auto;margin:0;" ${submission.reportEmailSent ? '' : 'checked'}>
+      <label class="field-check" style="margin-bottom:16px;">
+        <input type="checkbox" id="sendEmail" ${submission.reportEmailSent ? '' : 'checked'}>
         Email the signed report to ${escapeHtml(submission.candidateEmail)}
-      </label>` : '<p class="muted">No candidate email on file — report will be available for download only.</p>'}
-      <div class="row" style="margin-top:16px;">
-        <button class="btn btn-primary" id="saveGradeBtn" type="button">${submission.graded ? 'Update grade' : 'Finalize grade'}</button>
-        ${submission.graded ? `<a class="btn" href="/api/submissions/${submission._id}/report.pdf" target="_blank">Download PDF report</a>` : ''}
+      </label>` : '<p class="muted" style="margin-bottom:16px;">No candidate email on file — report will be available for download only.</p>'}
+
+      <div id="gradeInlineMsg"></div>
+      <div class="row">
+        <button class="btn btn-primary btn-lg" id="saveGradeBtn" type="button">${submission.graded ? 'Update grade' : 'Finalize grade'}</button>
+        ${submission.graded ? `<a class="btn btn-lg" href="/api/submissions/${submission._id}/report.pdf" target="_blank">Download PDF report</a>` : ''}
       </div>
     `;
     body.innerHTML = html;
 
-    // signature pad
+    // ---- signature pad ----
     const canvas = document.getElementById('sigPad');
     const ctx = canvas.getContext('2d');
-    ctx.strokeStyle = '#8C5F22'; ctx.lineWidth = 2; ctx.lineCap = 'round';
+    ctx.strokeStyle = '#93691F'; ctx.lineWidth = 2.2; ctx.lineCap = 'round';
     let drawing = false, hasDrawn = false;
+
+    // If a previously-drawn signature exists, show it on the canvas.
+    if (submission.examinerSignature && submission.examinerSignature.startsWith('data:image')) {
+      const img = new Image();
+      img.onload = () => ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      img.src = submission.examinerSignature;
+      hasDrawn = true;
+    }
+
     function pos(e) {
       const r = canvas.getBoundingClientRect();
       const t = e.touches ? e.touches[0] : e;
-      return { x: t.clientX - r.left, y: t.clientY - r.top };
+      return { x: (t.clientX - r.left) * (canvas.width / r.width), y: (t.clientY - r.top) * (canvas.height / r.height) };
     }
     function start(e) { drawing = true; hasDrawn = true; const p = pos(e); ctx.beginPath(); ctx.moveTo(p.x, p.y); e.preventDefault(); }
     function move(e) { if (!drawing) return; const p = pos(e); ctx.lineTo(p.x, p.y); ctx.stroke(); e.preventDefault(); }
     function end() { drawing = false; }
     canvas.addEventListener('mousedown', start); canvas.addEventListener('mousemove', move); window.addEventListener('mouseup', end);
     canvas.addEventListener('touchstart', start); canvas.addEventListener('touchmove', move); canvas.addEventListener('touchend', end);
-    document.getElementById('clearSig').addEventListener('click', () => { ctx.clearRect(0,0,canvas.width,canvas.height); hasDrawn = false; });
+    document.getElementById('clearSig').addEventListener('click', () => {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      hasDrawn = false;
+    });
 
+    // ---- save ----
     document.getElementById('saveGradeBtn').addEventListener('click', async () => {
+      const inlineMsg = document.getElementById('gradeInlineMsg');
+      inlineMsg.innerHTML = '';
+
+      const typedSig = document.getElementById('typedSignature').value.trim();
+      if (!hasDrawn && !typedSig) {
+        inlineMsg.innerHTML = '<div class="warn-banner">Please either draw a signature or type your name before finalizing.</div>';
+        return;
+      }
+
       const marks = {};
       sqQuestions.forEach(a => {
         const v = document.getElementById(`mark_${a.questionId}`).value;
         marks[a.questionId] = Math.max(0, Math.min(a.points, parseFloat(v || '0')));
       });
-      let signature = '';
-      if (hasDrawn) {
-        signature = canvas.toDataURL('image/png');
-      } else {
-        const typed = prompt('Type your name to sign this report:', Api.getUser()?.name || '');
-        if (typed === null) return;
-        signature = typed.trim();
-      }
+
+      // Prefer the drawn signature if present; otherwise use the typed name.
+      const signature = hasDrawn ? canvas.toDataURL('image/png') : typedSig;
+
       const sendEmailEl = document.getElementById('sendEmail');
-      const msg = document.getElementById('gradeMsg');
-      msg.innerHTML = '';
+      const saveBtn = document.getElementById('saveGradeBtn');
+      saveBtn.disabled = true;
+      saveBtn.textContent = 'Saving…';
+
       try {
         const res = await Api.request(`/submissions/${subId}/grade`, { method: 'PUT', body: {
           marks,
@@ -162,13 +202,15 @@ if (Api.requireLogin()) {
           examinerComments: document.getElementById('comments').value,
           sendEmail: sendEmailEl ? sendEmailEl.checked : false,
         }});
-        let note = 'Grade saved.';
+        let note = 'Grade saved and signed.';
         if (res.emailResult === 'sent') note += ' Report emailed to the candidate.';
-        if (res.emailResult === 'failed') note += ' The report could not be emailed — you can still download the PDF.';
-        msg.innerHTML = `<div class="ok-banner">${note}</div>`;
+        if (res.emailResult === 'failed') note += ' The report could not be emailed — you can still download the PDF below. (Check your Mailjet sender is verified.)';
+        document.getElementById('gradeMsg').innerHTML = `<div class="ok-banner">${note}</div>`;
         loadForGrading(subId);
       } catch (err) {
-        msg.innerHTML = `<div class="warn-banner">${err.message}</div>`;
+        inlineMsg.innerHTML = `<div class="warn-banner">Could not save: ${err.message}</div>`;
+        saveBtn.disabled = false;
+        saveBtn.textContent = submission.graded ? 'Update grade' : 'Finalize grade';
       }
     });
   }
@@ -177,6 +219,7 @@ if (Api.requireLogin()) {
 function escapeHtml(s) {
   return String(s || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
+function escapeAttr(s) { return escapeHtml(s); }
 </script>
 </body>
 </html>

@@ -4,17 +4,24 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>My results — Examiner</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Lora:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
 <div class="topbar">
-  <strong>Examiner</strong>
+  <a class="brand" href="my-results.html"><div class="brand-mark"><svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M12 3L3 7.5L12 12L21 7.5L12 3Z" stroke="#1B1204" stroke-width="1.7" stroke-linejoin="round"/><path d="M6 10.3V15.8C6 15.8 8 18.3 12 18.3C16 18.3 18 15.8 18 15.8V10.3" stroke="#1B1204" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/><path d="M21 7.5V13" stroke="#1B1204" stroke-width="1.7" stroke-linecap="round"/></svg></div><span class="brand-name">Examiner</span></a>
   <div class="nav">
     <span class="navlink" id="whoami"></span>
     <a class="navlink" href="#" id="logoutBtn">Log out</a>
   </div>
 </div>
 <div class="shell">
+  <div class="page-head">
+    <h1>My results</h1>
+    <p class="hint">Every exam you've taken, kept permanently in your account.</p>
+  </div>
+
   <div class="card">
     <h2>Take an exam</h2>
     <p class="hint">Paste the exam code or link your examiner shared with you.</p>
@@ -24,17 +31,18 @@
     </div>
   </div>
 
-  <div class="card">
-    <h2>Your results</h2>
-    <p class="hint">Every exam you've taken, kept permanently in your account.</p>
-    <div id="subList">Loading…</div>
+  <div class="card card-flush">
+    <div style="padding:20px 26px 0;">
+      <h2 style="margin-bottom:0;">Your results</h2>
+    </div>
+    <div id="subList" style="padding:14px 26px 6px;">Loading…</div>
   </div>
 </div>
 <script src="js/api.js"></script>
 <script>
 if (Api.requireLogin()) {
   const user = Api.getUser();
-  document.getElementById('whoami').textContent = user ? user.name : '';
+  document.getElementById('whoami').innerHTML = user ? `${escapeHtml(user.name)} <span class="role-pill">Candidate</span>` : '';
   document.getElementById('logoutBtn').addEventListener('click', (e) => {
     e.preventDefault(); Api.clearSession(); window.location.href = 'login.html';
   });
@@ -42,7 +50,6 @@ if (Api.requireLogin()) {
   document.getElementById('goBtn').addEventListener('click', () => {
     const raw = document.getElementById('codeInput').value.trim();
     if (!raw) return;
-    // accept either a bare code or a full take-exam.html?code=... link
     let code = raw;
     const match = raw.match(/[?&]code=([^&]+)/);
     if (match) code = decodeURIComponent(match[1]);
@@ -54,9 +61,10 @@ if (Api.requireLogin()) {
     try {
       const { submissions } = await Api.request('/submissions/mine');
       if (!submissions.length) {
-        listEl.innerHTML = '<p class="hint">You haven\'t taken any exams yet.</p>';
+        listEl.innerHTML = '<p class="hint" style="margin:0 0 20px;">You haven\'t taken any exams yet.</p>';
         return;
       }
+      listEl.style.padding = '0';
       listEl.innerHTML = submissions.map(s => `
         <div class="list-item">
           <div>
