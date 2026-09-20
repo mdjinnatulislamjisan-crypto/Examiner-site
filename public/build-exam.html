@@ -12,6 +12,33 @@
   <div class="nav"><a class="navlink" href="dashboard.html">← Dashboard</a></div>
 </div>
 <div class="shell">
+  <div class="card" style="border-color:var(--accent);background:var(--accent-tint);">
+    <h2>Import questions from a file</h2>
+    <p class="hint">Have an exam already written up as JSON (from an AI generator, a previous export, etc.)? Upload it and every field below fills in automatically — you can still review and tweak before saving.</p>
+    <div class="row">
+      <button class="btn btn-primary" id="importBtn" type="button">Choose JSON file</button>
+      <input type="file" id="importFile" accept=".json,application/json" style="display:none;">
+      <span class="muted" id="importFileName"></span>
+    </div>
+    <div id="importMsg" style="margin-top:10px;"></div>
+    <details style="margin-top:10px;">
+      <summary class="muted" style="cursor:pointer;">Expected file format</summary>
+      <pre style="background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-sm);padding:12px;font-size:11.5px;overflow-x:auto;margin-top:8px;">{
+  "settings": {
+    "title": "Exam title",
+    "duration": 60,
+    "showScore": true,
+    "revealAnswers": true,
+    "instructions": "Shown to candidates as the description"
+  },
+  "questions": [
+    { "type": "mcq", "text": "...", "options": ["A", "B", "C", "D"], "correctIndex": 1, "points": 1 },
+    { "type": "sq", "text": "...", "referenceAnswer": "...", "points": 1 }
+  ]
+}</pre>
+    </details>
+  </div>
+
   <div class="card">
     <h2 id="pageTitle">Build a new exam</h2>
     <div id="msg"></div>
@@ -110,6 +137,76 @@ if (Api.requireLogin()) {
     }));
   }
   render();
+
+  // ---- Import from JSON ----
+  document.getElementById('importBtn').addEventListener('click', () => document.getElementById('importFile').click());
+  document.getElementById('importFile').addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    document.getElementById('importFileName').textContent = file.name;
+    const importMsg = document.getElementById('importMsg');
+    importMsg.innerHTML = '';
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      let parsed;
+      try {
+        parsed = JSON.parse(reader.result);
+      } catch (err) {
+        importMsg.innerHTML = '<div class="warn-banner">That file is not valid JSON — check it opens correctly and try again.</div>';
+        return;
+      }
+      try {
+        const result = applyImportedExam(parsed);
+        importMsg.innerHTML = `<div class="ok-banner">Imported ${result.count} question(s)${result.skipped ? ` — skipped ${result.skipped} that were missing required fields` : ''}. Review below, then Save exam.</div>`;
+      } catch (err) {
+        importMsg.innerHTML = `<div class="warn-banner">${err.message}</div>`;
+      }
+    };
+    reader.onerror = () => { importMsg.innerHTML = '<div class="warn-banner">Could not read that file.</div>'; };
+    reader.readAsText(file);
+    e.target.value = ''; // allow re-selecting the same file later
+  });
+
+  function applyImportedExam(parsed) {
+    if (!parsed || typeof parsed !== 'object') throw new Error('File does not contain a JSON object.');
+    const rawQuestions = Array.isArray(parsed.questions) ? parsed.questions
+      : Array.isArray(parsed) ? parsed // also accept a bare array of questions
+      : null;
+    if (!rawQuestions || !rawQuestions.length) throw new Error('No "questions" array found in that file.');
+
+    const settings = parsed.settings || {};
+    if (settings.title) document.getElementById('title').value = settings.title;
+    if (settings.instructions) document.getElementById('description').value = settings.instructions;
+    if (settings.duration) document.getElementById('duration').value = parseInt(settings.duration, 10) || 30;
+    if (typeof settings.showScore === 'boolean') document.getElementById('showScore').checked = settings.showScore;
+    if (typeof settings.revealAnswers === 'boolean') document.getElementById('revealAnswers').checked = settings.revealAnswers;
+
+    let skipped = 0;
+    const imported = [];
+    rawQuestions.forEach((q) => {
+      const text = (q.text || q.question || '').toString().trim();
+      const points = Number(q.points) > 0 ? Number(q.points) : 1;
+      const type = q.type === 'sq' || q.type === 'short' ? 'sq' : 'mcq';
+      if (!text) { skipped++; return; }
+
+      if (type === 'mcq') {
+        const options = Array.isArray(q.options) ? q.options.map((o) => String(o)) : [];
+        if (options.length < 2) { skipped++; return; }
+        let correctIndex = Number.isInteger(q.correctIndex) ? q.correctIndex : 0;
+        if (correctIndex < 0 || correctIndex >= options.length) correctIndex = 0;
+        imported.push({ type: 'mcq', text, points, options, correctIndex });
+      } else {
+        imported.push({ type: 'sq', text, points, referenceAnswer: (q.referenceAnswer || q.answer || '').toString() });
+      }
+    });
+
+    if (!imported.length) throw new Error('None of the questions in that file had the required fields (text, and options/correctIndex for MCQs).');
+
+    questions = imported; // replace the current question list with the imported one
+    render();
+    return { count: imported.length, skipped };
+  }
 
   async function loadForEdit() {
     if (!editId) return;

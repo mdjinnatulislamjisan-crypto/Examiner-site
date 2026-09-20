@@ -140,6 +140,17 @@ Your site is now live at your Render URL, independent of your own computer.
   role, and the API re-checks the role against the database on every
   examiner-only request (`middleware/auth.js` → `requireRole`), so a role
   can never be spoofed from the browser.
+- **Email verification is required before logging in** — registering sends
+  a verification link (via Mailjet) instead of logging the person in right
+  away. `/verify-email.html` confirms the link and then logs them in
+  automatically. If a link is lost or expired, both the login page (when it
+  detects an unverified account) and the verify page itself offer a
+  **Resend verification email** option.
+- **Forgot password** — `/forgot-password.html` emails a reset link (valid
+  1 hour) to any account with that address; `/reset-password.html` sets the
+  new password. Both always show the same generic confirmation message
+  whether or not the email is registered, so no one can use it to discover
+  which emails have accounts.
 - **Safe, permanent storage** — every exam and every submission is a document
   in MongoDB Atlas (a managed, backed-up cloud database), not local storage or
   a file on your PC. Exams are archived, never deleted, so history is kept.

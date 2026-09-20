@@ -27,7 +27,11 @@ const Api = (() => {
     let data = {};
     try { data = await res.json(); } catch { /* empty body, e.g. some 204s */ }
     if (!res.ok) {
-      throw new Error(data.error || `Request failed (${res.status})`);
+      const err = new Error(data.error || `Request failed (${res.status})`);
+      // Carry over any extra fields the API sent alongside the error message
+      // (e.g. needsVerification) so callers can branch on them.
+      Object.assign(err, data);
+      throw err;
     }
     return data;
   }

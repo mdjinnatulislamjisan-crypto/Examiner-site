@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Verify email — Examiner</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Lora:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div class="topbar">
+  <a class="brand" href="index.html"><div class="brand-mark"><svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M12 3L3 7.5L12 12L21 7.5L12 3Z" stroke="#1B1204" stroke-width="1.7" stroke-linejoin="round"/><path d="M6 10.3V15.8C6 15.8 8 18.3 12 18.3C16 18.3 18 15.8 18 15.8V10.3" stroke="#1B1204" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/><path d="M21 7.5V13" stroke="#1B1204" stroke-width="1.7" stroke-linecap="round"/></svg></div><span class="brand-name">Examiner</span></a>
+  <div class="nav"><a class="navlink" href="login.html">Log in</a></div>
+</div>
+<div class="shell narrow">
+  <div class="card" style="text-align:center;">
+    <h2>Verifying your email…</h2>
+    <div id="msg"></div>
+  </div>
+</div>
+<script src="js/api.js"></script>
+<script>
+const params = new URLSearchParams(location.search);
+const token = params.get('token');
+const msg = document.getElementById('msg');
+
+(async () => {
+  if (!token) {
+    msg.innerHTML = '<div class="warn-banner">This link is missing its verification token.</div>';
+    return;
+  }
+  try {
+    const data = await Api.request('/auth/verify-email', { auth: false, method: 'POST', body: { token } });
+    Api.setSession(data.token, data.user);
+    msg.innerHTML = `<div class="ok-banner">Email verified! Redirecting…</div>`;
+    setTimeout(() => { window.location.href = Api.homeFor(data.user); }, 1200);
+  } catch (err) {
+    msg.innerHTML = `<div class="warn-banner">${err.message}</div>
+      <div class="row" style="justify-content:center;margin-top:10px;">
+        <input type="email" id="resendEmail" placeholder="Your email" style="max-width:220px;margin-bottom:0;">
+        <button class="btn btn-sm" id="resendBtn" type="button">Resend link</button>
+      </div>
+      <div id="resendMsg" style="margin-top:10px;"></div>`;
+    document.getElementById('resendBtn').addEventListener('click', async () => {
+      const email = document.getElementById('resendEmail').value;
+      if (!email) return;
+      try {
+        const r = await Api.request('/auth/resend-verification', { auth: false, method: 'POST', body: { email } });
+        document.getElementById('resendMsg').innerHTML = `<div class="ok-banner">${r.message}</div>`;
+      } catch (e2) {
+        document.getElementById('resendMsg').innerHTML = `<div class="warn-banner">${e2.message}</div>`;
+      }
+    });
+  }
+})();
+</script>
+</body>
+</html>

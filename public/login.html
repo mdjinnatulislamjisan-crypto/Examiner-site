@@ -4,6 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Log in — Examiner</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Lora:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
@@ -18,7 +20,10 @@
     <form id="loginForm">
       <label>Email</label>
       <input type="email" id="email" required>
-      <label>Password</label>
+      <div class="row between" style="margin-bottom:6px;">
+        <label style="margin-bottom:0;">Password</label>
+        <a href="forgot-password.html" style="font-size:12.5px;">Forgot password?</a>
+      </div>
       <input type="password" id="password" required>
       <button class="btn btn-primary btn-block btn-lg" type="submit">Log in</button>
     </form>
@@ -39,15 +44,34 @@ document.getElementById('loginForm').addEventListener('submit', async (e) => {
   e.preventDefault();
   const msg = document.getElementById('msg');
   msg.innerHTML = '';
+  const email = document.getElementById('email').value;
   try {
     const data = await Api.request('/auth/login', { auth: false, method: 'POST', body: {
-      email: document.getElementById('email').value,
+      email,
       password: document.getElementById('password').value,
     }});
     Api.setSession(data.token, data.user);
     window.location.href = next ? decodeURIComponent(next) : Api.homeFor(data.user);
   } catch (err) {
-    msg.innerHTML = `<div class="warn-banner">${err.message}</div>`;
+    if (err.needsVerification) {
+      msg.innerHTML = `<div class="warn-banner">${err.message}</div>
+        <button class="btn btn-sm" id="resendBtn" type="button">Resend verification email</button>
+        <div id="resendMsg" style="margin-top:10px;"></div>`;
+      document.getElementById('resendBtn').addEventListener('click', async (ev) => {
+        ev.target.disabled = true;
+        ev.target.textContent = 'Sending…';
+        try {
+          const r = await Api.request('/auth/resend-verification', { auth: false, method: 'POST', body: { email } });
+          document.getElementById('resendMsg').innerHTML = `<div class="ok-banner">${r.message}</div>`;
+        } catch (e2) {
+          document.getElementById('resendMsg').innerHTML = `<div class="warn-banner">${e2.message}</div>`;
+          ev.target.disabled = false;
+          ev.target.textContent = 'Resend verification email';
+        }
+      });
+    } else {
+      msg.innerHTML = `<div class="warn-banner">${err.message}</div>`;
+    }
   }
 });
 </script>
