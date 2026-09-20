@@ -1,4 +1,36 @@
 const PDFDocument = require('pdfkit');
+const fs = require('fs');
+const path = require('path');
+
+// PDFKit's built-in fonts (Helvetica etc.) only cover Latin characters — they
+// have no Bengali, Devanagari, Arabic, CJK, etc. glyphs at all. Rendering
+// non-Latin text with them doesn't error, it just silently prints garbage
+// bytes (mojibake). Fixing that requires embedding a real Unicode font.
+//
+// Noto Sans Bengali covers both Bengali script AND Basic Latin, so one pair
+// of files (Regular + Bold) is enough for reports mixing Bengali and English.
+// Place these two files here (see /assets/fonts/README.md for exact download
+// steps) — everything below falls back to Helvetica automatically if they're
+// missing, so a report without them still generates, just without Bengali
+// support restored.
+const FONT_DIR = path.join(__dirname, '..', 'assets', 'fonts');
+const REGULAR_FONT_FILE = path.join(FONT_DIR, 'NotoSansBengali-Regular.ttf');
+const BOLD_FONT_FILE = path.join(FONT_DIR, 'NotoSansBengali-Bold.ttf');
+
+function registerUnicodeFonts(doc) {
+  const hasRegular = fs.existsSync(REGULAR_FONT_FILE);
+  const hasBold = fs.existsSync(BOLD_FONT_FILE);
+  if (hasRegular && hasBold) {
+    try {
+      doc.registerFont('Body', REGULAR_FONT_FILE);
+      doc.registerFont('Body-Bold', BOLD_FONT_FILE);
+      return { regular: 'Body', bold: 'Body-Bold', hasUnicode: true };
+    } catch (e) {
+      // corrupt/invalid font file — fall through to Helvetica below
+    }
+  }
+  return { regular: 'Helvetica', bold: 'Helvetica-Bold', hasUnicode: false };
+}
 
 // Embeds a base64 data-URL image (from <input type=file> uploads or the
 // signature pad) into the report, fitting it within maxWidth/maxHeight and
@@ -29,30 +61,32 @@ function buildReportPDF(submission) {
       doc.on('end', () => resolve(Buffer.concat(chunks)));
       doc.on('error', reject);
 
+      const { regular, bold } = registerUnicodeFonts(doc);
+
       const inkColor = '#1B2430';
       const accent = '#8C5F22';
       const soft = '#5B6472';
       const line = '#D9D4C6';
 
       // Header
-      doc.fillColor(inkColor).fontSize(20).font('Helvetica-Bold')
+      doc.fillColor(inkColor).fontSize(20).font(bold)
         .text('Examination Report', { align: 'left' });
       doc.moveDown(0.2);
-      doc.fillColor(soft).fontSize(11).font('Helvetica')
+      doc.fillColor(soft).fontSize(11).font(regular)
         .text(submission.examTitle || 'Exam', { align: 'left' });
       doc.moveTo(50, doc.y + 10).lineTo(545, doc.y + 10).strokeColor(line).stroke();
       doc.moveDown(1.2);
 
       // Candidate / meta block
       const metaTop = doc.y;
-      doc.fontSize(10.5).fillColor(inkColor).font('Helvetica-Bold').text('Candidate', 50, metaTop);
-      doc.font('Helvetica').fillColor(soft).text(submission.candidateName || '-', 50, doc.y);
+      doc.fontSize(10.5).fillColor(inkColor).font(bold).text('Candidate', 50, metaTop);
+      doc.font(regular).fillColor(soft).text(submission.candidateName || '-', 50, doc.y);
       if (submission.candidateEmail) {
         doc.text(submission.candidateEmail, 50, doc.y);
       }
 
-      doc.font('Helvetica-Bold').fillColor(inkColor).text('Submitted', 300, metaTop);
-      doc.font('Helvetica').fillColor(soft)
+      doc.font(bold).fillColor(inkColor).text('Submitted', 300, metaTop);
+      doc.font(regular).fillColor(soft)
         .text(new Date(submission.submittedAt).toLocaleString(), 300, doc.y);
       if (submission.autoSubmitted) {
         doc.fillColor('#A63D31').text('Auto-submitted (time expired)', 300, doc.y);
@@ -63,11 +97,11 @@ function buildReportPDF(submission) {
       // Score summary box
       const boxY = doc.y;
       doc.roundedRect(50, boxY, 495, 60, 6).fillAndStroke('#F5F3ED', line);
-      doc.fillColor(inkColor).font('Helvetica-Bold').fontSize(12)
+      doc.fillColor(inkColor).font(bold).fontSize(12)
         .text('Final Score', 65, boxY + 12);
       doc.fontSize(22).text(`${submission.finalScore} / ${submission.totalMax}`, 65, boxY + 28);
 
-      doc.fontSize(10).font('Helvetica').fillColor(soft)
+      doc.fontSize(10).font(regular).fillColor(soft)
         .text(`Multiple-choice: ${submission.mcqScore} / ${submission.mcqMax}`, 300, boxY + 14)
         .text(`Short answer: ${submission.sqScore} / ${submission.sqMax}`, 300, boxY + 30);
 
@@ -75,14 +109,14 @@ function buildReportPDF(submission) {
       doc.moveDown(0.5);
 
       // Per-question breakdown
-      doc.fontSize(13).font('Helvetica-Bold').fillColor(inkColor).text('Answer Breakdown');
+      doc.fontSize(13).font(bold).fillColor(inkColor).text('Answer Breakdown');
       doc.moveDown(0.3);
 
       submission.answers.forEach((a, i) => {
         if (doc.y > 700) doc.addPage();
-        doc.fontSize(10.5).font('Helvetica-Bold').fillColor(inkColor)
+        doc.fontSize(10.5).font(bold).fillColor(inkColor)
           .text(`${i + 1}. ${a.text}`, { width: 495 });
-        doc.font('Helvetica').fontSize(10);
+        doc.font(regular).fontSize(10);
 
         if (a.questionImage) embedDataUrlImage(doc, a.questionImage, 260, 170);
 
@@ -97,7 +131,7 @@ function buildReportPDF(submission) {
           doc.fillColor(soft).text(`Answer: ${a.answer || (a.answerImage ? '(see attached photo)' : '(left blank)')}`);
           if (a.answerImage) embedDataUrlImage(doc, a.answerImage, 260, 200);
           if (a.referenceAnswer) doc.text(`Model answer: ${a.referenceAnswer}`);
-          doc.fillColor(inkColor).font('Helvetica-Bold')
+          doc.fillColor(inkColor).font(bold)
             .text(`Marks awarded: ${a.awardedMarks == null ? '-' : a.awardedMarks} / ${a.points}`);
         }
         doc.moveDown(0.6);
@@ -106,8 +140,8 @@ function buildReportPDF(submission) {
       if (submission.examinerComments) {
         if (doc.y > 680) doc.addPage();
         doc.moveDown(0.5);
-        doc.fontSize(12).font('Helvetica-Bold').fillColor(inkColor).text('Examiner Comments');
-        doc.fontSize(10.5).font('Helvetica').fillColor(soft).text(submission.examinerComments, { width: 495 });
+        doc.fontSize(12).font(bold).fillColor(inkColor).text('Examiner Comments');
+        doc.fontSize(10.5).font(regular).fillColor(soft).text(submission.examinerComments, { width: 495 });
       }
 
       // Signature block
@@ -126,15 +160,15 @@ function buildReportPDF(submission) {
           // fall through to typed name if the image can't be decoded
         }
       } else if (submission.examinerSignature) {
-        doc.font('Helvetica-Oblique').fontSize(16).fillColor(accent)
+        doc.font(regular).fontSize(16).fillColor(accent)
           .text(submission.examinerSignature, 50, sigY - 26);
       }
 
-      doc.fontSize(9.5).font('Helvetica').fillColor(soft)
+      doc.fontSize(9.5).font(regular).fillColor(soft)
         .text('Examiner signature', 50, sigY + 5);
-      doc.fontSize(10).font('Helvetica-Bold').fillColor(inkColor)
+      doc.fontSize(10).font(bold).fillColor(inkColor)
         .text(submission.examinerName || '', 50, sigY + 18);
-      doc.fontSize(9).font('Helvetica').fillColor(soft)
+      doc.fontSize(9).font(regular).fillColor(soft)
         .text(submission.gradedAt ? new Date(submission.gradedAt).toLocaleString() : '', 50, sigY + 32);
 
       doc.end();

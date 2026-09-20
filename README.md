@@ -65,7 +65,18 @@ hard-deleted — "Archive" just stops new submissions; history stays intact.
    only the email step can fail, and the examiner sees a clear "email failed,
    download the PDF instead" message.
 
-## 4. Configure environment variables
+## 4. Add the Bengali font (needed for correct PDF reports)
+
+If any of your exams use Bengali (or any non-Latin script), the PDF report
+generator needs a real Unicode font — PDFKit's built-in fonts only support
+Latin characters and will render Bengali as garbled text otherwise.
+
+Full step-by-step instructions are in **`assets/fonts/README.md`** — in
+short: download Noto Sans Bengali from Google Fonts, and drop the Regular
+and Bold `.ttf` files into `assets/fonts/`. If your exams are English-only,
+you can skip this — reports still generate fine without it.
+
+## 5. Configure environment variables
 
 1. In the project folder, copy `.env.example` to `.env`.
 2. Fill in:
@@ -78,7 +89,7 @@ hard-deleted — "Archive" just stops new submissions; history stays intact.
    - `PUBLIC_BASE_URL` — leave as `http://localhost:5000` for now; you'll set
      the real one after deploying.
 
-## 5. Run it locally
+## 6. Run it locally
 
 ```
 npm run dev
@@ -89,7 +100,7 @@ taking it, then go to **Grading** to mark it and generate the PDF report.
 
 ---
 
-## 6. Push to GitHub
+## 7. Push to GitHub
 
 In the VS Code terminal:
 ```
@@ -109,7 +120,7 @@ instead of the commands above, if you prefer.)
 
 Your `.env` file is excluded by `.gitignore` — your secrets never get pushed.
 
-## 7. Deploy on Render (so it stays online while your PC is off)
+## 8. Deploy on Render (so it stays online while your PC is off)
 
 1. Sign up at [render.com](https://render.com) and connect your GitHub account.
 2. **New → Web Service** → pick your `exam-platform` repo.
