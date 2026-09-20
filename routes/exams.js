@@ -113,6 +113,7 @@ router.get('/public/:code', requireAuth, async (req, res) => {
     type: q.type,
     text: q.text,
     points: q.points,
+    image: q.image || undefined,
     options: q.type === 'mcq' ? q.options : undefined,
   }));
 

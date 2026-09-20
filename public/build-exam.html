@@ -18,7 +18,13 @@
     <div class="row">
       <button class="btn btn-primary" id="importBtn" type="button">Choose JSON file</button>
       <input type="file" id="importFile" accept=".json,application/json" style="display:none;">
+      <button class="btn" id="togglePasteBtn" type="button">Or paste plain text</button>
       <span class="muted" id="importFileName"></span>
+    </div>
+    <div id="pasteWrap" style="display:none;margin-top:14px;">
+      <p class="hint">Paste numbered questions (Bengali or English). Lines with lettered options (ক) / a) / A.) become MCQs automatically; anything else becomes a short-answer question. An "Answer: খ" or "Ans: B" line, if present, sets the correct option — otherwise review and mark it yourself below.</p>
+      <textarea id="pasteText" rows="8" placeholder="১. প্রশ্ন লিখুন...&#10;ক) অপশন ১&#10;খ) অপশন ২&#10;গ) অপশন ৩&#10;ঘ) অপশন ৪&#10;উত্তর: খ&#10;&#10;2. What is the capital of France?&#10;a) London&#10;b) Paris&#10;c) Rome&#10;Answer: b"></textarea>
+      <button class="btn btn-primary" id="parseTextBtn" type="button">Parse into questions</button>
     </div>
     <div id="importMsg" style="margin-top:10px;"></div>
     <details style="margin-top:10px;">
@@ -80,12 +86,27 @@ if (Api.requireLogin()) {
 
   function addQuestion(type) {
     questions.push(type === 'mcq'
-      ? { type: 'mcq', text: '', points: 1, options: ['', ''], correctIndex: 0 }
-      : { type: 'sq', text: '', points: 1, referenceAnswer: '' });
+      ? { type: 'mcq', text: '', points: 1, image: '', options: ['', ''], correctIndex: 0 }
+      : { type: 'sq', text: '', points: 1, image: '', referenceAnswer: '' });
     render();
   }
   document.getElementById('addMcq').addEventListener('click', () => addQuestion('mcq'));
   document.getElementById('addSq').addEventListener('click', () => addQuestion('sq'));
+
+  function imageBlock(q, i) {
+    if (q.image) {
+      return `<div class="q-image-preview" style="margin-bottom:10px;">
+        <img src="${q.image}" style="max-width:220px;max-height:150px;border-radius:8px;border:1px solid var(--line);display:block;">
+        <button class="btn btn-sm btn-ghost" data-qi="${i}" data-action="removeImg" type="button" style="margin-top:6px;">Remove photo</button>
+      </div>`;
+    }
+    return `<div style="margin-bottom:10px;">
+      <label class="btn btn-sm" style="display:inline-flex;">
+        📎 Add photo (diagram / equation / figure)
+        <input type="file" accept="image/*" data-qi="${i}" class="qImageInput" style="display:none;">
+      </label>
+    </div>`;
+  }
 
   function render() {
     const wrap = document.getElementById('questionList');
@@ -102,6 +123,7 @@ if (Api.requireLogin()) {
             <button class="btn btn-sm btn-danger" style="margin-left:auto;" data-qi="${i}" data-action="removeQ" type="button">Remove</button>
           </div>
           <textarea placeholder="Question text" data-qi="${i}" class="qText" style="margin-bottom:8px;">${escapeAttr(q.text)}</textarea>
+          ${imageBlock(q, i)}
           ${opts}
           <div class="row">
             <button class="btn btn-sm" data-qi="${i}" data-action="addOpt" type="button">+ Option</button>
@@ -114,6 +136,7 @@ if (Api.requireLogin()) {
             <button class="btn btn-sm btn-danger" style="margin-left:auto;" data-qi="${i}" data-action="removeQ" type="button">Remove</button>
           </div>
           <textarea placeholder="Question text" data-qi="${i}" class="qText" style="margin-bottom:8px;">${escapeAttr(q.text)}</textarea>
+          ${imageBlock(q, i)}
           <label>Model / reference answer (shown only to the examiner when grading)</label>
           <textarea placeholder="Optional" data-qi="${i}" class="qRef" style="margin-bottom:8px;">${escapeAttr(q.referenceAnswer || '')}</textarea>
           <label style="display:inline;">Points <input type="number" min="1" value="${q.points}" data-qi="${i}" class="qPoints" style="width:70px;display:inline-block;margin-left:6px;"></label>
@@ -135,11 +158,30 @@ if (Api.requireLogin()) {
       if (q.correctIndex >= q.options.length) q.correctIndex = 0;
       render();
     }));
+    wrap.querySelectorAll('.qImageInput').forEach(el => el.addEventListener('change', async () => {
+      const file = el.files[0];
+      if (!file) return;
+      const qi = el.dataset.qi;
+      try {
+        questions[qi].image = await compressImageFile(file);
+      } catch (err) {
+        alert(err.message);
+      }
+      render();
+    }));
+    wrap.querySelectorAll('[data-action="removeImg"]').forEach(el => el.addEventListener('click', () => {
+      questions[el.dataset.qi].image = '';
+      render();
+    }));
   }
   render();
 
   // ---- Import from JSON ----
   document.getElementById('importBtn').addEventListener('click', () => document.getElementById('importFile').click());
+  document.getElementById('togglePasteBtn').addEventListener('click', () => {
+    const wrap = document.getElementById('pasteWrap');
+    wrap.style.display = wrap.style.display === 'none' ? 'block' : 'none';
+  });
   document.getElementById('importFile').addEventListener('change', (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -195,9 +237,9 @@ if (Api.requireLogin()) {
         if (options.length < 2) { skipped++; return; }
         let correctIndex = Number.isInteger(q.correctIndex) ? q.correctIndex : 0;
         if (correctIndex < 0 || correctIndex >= options.length) correctIndex = 0;
-        imported.push({ type: 'mcq', text, points, options, correctIndex });
+        imported.push({ type: 'mcq', text, points, options, correctIndex, image: typeof q.image === 'string' ? q.image : '' });
       } else {
-        imported.push({ type: 'sq', text, points, referenceAnswer: (q.referenceAnswer || q.answer || '').toString() });
+        imported.push({ type: 'sq', text, points, referenceAnswer: (q.referenceAnswer || q.answer || '').toString(), image: typeof q.image === 'string' ? q.image : '' });
       }
     });
 
@@ -207,6 +249,83 @@ if (Api.requireLogin()) {
     render();
     return { count: imported.length, skipped };
   }
+
+  // ---- Smart-paste plain text: split into question blocks, auto-detect MCQ
+  // (lettered options present) vs short answer (no options), and pick up an
+  // explicit "Answer: X" / "উত্তর: খ" line if the author included one. ----
+  function parseTextToQuestions(raw) {
+    const letterIndex = { 'ক': 0, 'খ': 1, 'গ': 2, 'ঘ': 3, 'ঙ': 4, a: 0, b: 1, c: 2, d: 3, e: 4 };
+    const qStartRe = /^\s*(?:[０-９0-9]+|[০-৯]+)\s*[.)।]\s*/;
+    const optRe = /^\s*\(?([kক-ঙa-eA-E])\)?\s*[.).:।]\s*(.+)$/;
+    const ansRe = /^\s*(?:উত্তর|সঠিক\s*উত্তর|Answer|Ans)\s*[:：]\s*\(?([ক-ঙa-eA-E])\)?/i;
+
+    const lines = raw.split(/\r?\n/);
+    const blocks = [];
+    let current = null;
+    lines.forEach((line) => {
+      if (qStartRe.test(line) && line.replace(qStartRe, '').trim().length > 0) {
+        if (current) blocks.push(current);
+        current = [line.replace(qStartRe, '')];
+      } else if (current) {
+        current.push(line);
+      } else if (line.trim()) {
+        current = [line]; // text before any numbered marker — still capture it as a first block
+      }
+    });
+    if (current) blocks.push(current);
+
+    let skipped = 0;
+    const imported = [];
+    blocks.forEach((blockLines) => {
+      const textLines = [];
+      const options = [];
+      let correctIndex = null;
+      blockLines.forEach((line) => {
+        const ansMatch = line.match(ansRe);
+        if (ansMatch) {
+          const idx = letterIndex[ansMatch[1].toLowerCase()] ?? letterIndex[ansMatch[1]];
+          if (idx !== undefined) correctIndex = idx;
+          return;
+        }
+        const optMatch = line.match(optRe);
+        if (optMatch && optMatch[2].trim()) {
+          options.push(optMatch[2].trim());
+          return;
+        }
+        if (line.trim()) textLines.push(line.trim());
+      });
+
+      const text = textLines.join(' ').trim();
+      if (!text) { skipped++; return; }
+
+      if (options.length >= 2) {
+        imported.push({ type: 'mcq', text, points: 1, image: '', options, correctIndex: correctIndex ?? 0 });
+      } else {
+        imported.push({ type: 'sq', text, points: 1, image: '', referenceAnswer: '' });
+      }
+    });
+
+    if (!imported.length) throw new Error('Could not find any questions in that text. Make sure each question starts on its own line beginning with a number, like "1." or "১।".');
+
+    questions = imported;
+    render();
+    return { count: imported.length, skipped, mcqNoAnswer: imported.filter(q => q.type === 'mcq').length };
+  }
+
+  document.getElementById('parseTextBtn').addEventListener('click', () => {
+    const importMsg = document.getElementById('importMsg');
+    importMsg.innerHTML = '';
+    const raw = document.getElementById('pasteText').value;
+    if (!raw.trim()) { importMsg.innerHTML = '<div class="warn-banner">Paste some question text first.</div>'; return; }
+    try {
+      const result = parseTextToQuestions(raw);
+      const mcqCount = questions.filter(q => q.type === 'mcq').length;
+      importMsg.innerHTML = `<div class="ok-banner">Parsed ${result.count} question(s)${result.skipped ? `, skipped ${result.skipped} empty block(s)` : ''}.
+        ${mcqCount ? ' Double-check the marked correct answer on each MCQ below — auto-detection defaults to the first option when no "Answer:" line was found.' : ''}</div>`;
+    } catch (err) {
+      importMsg.innerHTML = `<div class="warn-banner">${err.message}</div>`;
+    }
+  });
 
   async function loadForEdit() {
     if (!editId) return;

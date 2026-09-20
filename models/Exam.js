@@ -5,6 +5,7 @@ const QuestionSchema = new mongoose.Schema(
     type: { type: String, enum: ['mcq', 'sq'], required: true },
     text: { type: String, required: true },
     points: { type: Number, required: true, min: 1, default: 1 },
+    image: { type: String, default: '' }, // optional data URL — diagrams, equations, chemical structures etc.
     // mcq only
     options: [{ type: String }],
     correctIndex: { type: Number },

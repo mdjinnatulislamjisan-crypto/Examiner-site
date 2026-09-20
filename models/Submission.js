@@ -6,6 +6,7 @@ const AnswerLogSchema = new mongoose.Schema(
     type: { type: String, enum: ['mcq', 'sq'], required: true },
     text: String,
     points: Number,
+    questionImage: { type: String, default: '' }, // copy of the question's image, if any, for the report
     // mcq
     options: [String],
     selectedIndex: { type: Number, default: null },
@@ -13,6 +14,7 @@ const AnswerLogSchema = new mongoose.Schema(
     correct: Boolean,
     // sq
     answer: String,
+    answerImage: { type: String, default: '' }, // candidate-attached photo (e.g. a worked-out math/physics/chem answer)
     referenceAnswer: String,
     awardedMarks: { type: Number, default: null },
   },

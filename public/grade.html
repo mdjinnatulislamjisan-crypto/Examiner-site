@@ -97,20 +97,25 @@ if (Api.requireLogin()) {
       html += '<div class="section-title">Multiple choice</div>';
       html += mcqQuestions.map(a => {
         const yourAns = a.selectedIndex === null || a.selectedIndex === undefined ? 'No answer' : escapeHtml(a.options[a.selectedIndex]);
-        return `<div class="review-line"><span>${escapeHtml(a.text)}</span><span style="color:${a.correct?'var(--success)':'var(--danger)'};font-weight:600;white-space:nowrap;">${yourAns} ${a.correct?'✓':'✗'}</span></div>`;
+        const qImg = a.questionImage ? `<img src="${a.questionImage}" style="max-width:200px;max-height:140px;border-radius:8px;border:1px solid var(--line);display:block;margin:6px 0;">` : '';
+        return `<div class="review-line" style="display:block;"><div class="row between"><span>${escapeHtml(a.text)}</span><span style="color:${a.correct?'var(--success)':'var(--danger)'};font-weight:600;white-space:nowrap;">${yourAns} ${a.correct?'✓':'✗'}</span></div>${qImg}</div>`;
       }).join('');
     }
 
     if (sqQuestions.length) {
       html += '<div class="section-title">Short answer — award marks</div>';
-      html += sqQuestions.map((a) => `
-        <div class="exam-q">
+      html += sqQuestions.map((a) => {
+        const qImg = a.questionImage ? `<img src="${a.questionImage}" style="max-width:220px;max-height:150px;border-radius:8px;border:1px solid var(--line);display:block;margin-bottom:10px;">` : '';
+        const ansImg = a.answerImage ? `<img src="${a.answerImage}" style="max-width:260px;max-height:200px;border-radius:8px;border:1px solid var(--line);display:block;margin-top:8px;">` : '';
+        return `<div class="exam-q">
           <strong>${escapeHtml(a.text)}</strong>
-          <div class="answer-box"><strong>Candidate's answer:</strong> ${escapeHtml(a.answer || '(left blank)')}</div>
+          ${qImg}
+          <div class="answer-box"><strong>Candidate's answer:</strong> ${escapeHtml(a.answer || (a.answerImage ? '(see attached photo)' : '(left blank)'))}${ansImg}</div>
           ${a.referenceAnswer ? `<div class="muted" style="margin-bottom:10px;">Model answer: ${escapeHtml(a.referenceAnswer)}</div>` : ''}
           <label>Marks (max ${a.points})</label>
           <input type="number" min="0" max="${a.points}" step="0.5" value="${a.awardedMarks ?? 0}" id="mark_${a.questionId}" style="max-width:120px;margin-bottom:0;">
-        </div>`).join('');
+        </div>`;
+      }).join('');
     }
 
     html += `
@@ -136,10 +141,23 @@ if (Api.requireLogin()) {
       <div id="gradeInlineMsg"></div>
       <div class="row">
         <button class="btn btn-primary btn-lg" id="saveGradeBtn" type="button">${submission.graded ? 'Update grade' : 'Finalize grade'}</button>
-        ${submission.graded ? `<a class="btn btn-lg" href="/api/submissions/${submission._id}/report.pdf" target="_blank">Download PDF report</a>` : ''}
+        ${submission.graded ? `<button class="btn btn-lg" id="downloadPdfBtn" type="button">Download PDF report</button>` : ''}
       </div>
     `;
     body.innerHTML = html;
+
+    if (submission.graded) {
+      document.getElementById('downloadPdfBtn').addEventListener('click', async (e) => {
+        const btn = e.target;
+        btn.disabled = true; btn.textContent = 'Downloading…';
+        try {
+          await Api.downloadFile(`/submissions/${submission._id}/report.pdf`, `report_${submission.candidateName.replace(/[^a-z0-9]+/gi, '_')}.pdf`);
+        } catch (err) {
+          document.getElementById('gradeInlineMsg').innerHTML = `<div class="warn-banner">Could not download: ${err.message}</div>`;
+        }
+        btn.disabled = false; btn.textContent = 'Download PDF report';
+      });
+    }
 
     // ---- signature pad ----
     const canvas = document.getElementById('sigPad');

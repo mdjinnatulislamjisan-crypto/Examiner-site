@@ -10,10 +10,15 @@ const examRoutes = require('./routes/exams');
 const submissionRoutes = require('./routes/submissions');
 
 const app = express();
+
+// Render (and most hosting platforms) sit behind a reverse proxy, which sets
+// the X-Forwarded-For header. Express needs to be told to trust it — one hop
+// (the platform's own proxy) — so express-rate-limit can correctly identify
+// each visitor's real IP instead of throwing a validation error on every request.
 app.set('trust proxy', 1);
 
 app.use(cors());
-app.use(express.json({ limit: '2mb' })); // signatures are small base64 images, keep a sane cap
+app.use(express.json({ limit: '15mb' })); // images (question diagrams, answer photos) need headroom beyond plain text
 
 // Basic protection on auth endpoints against brute-force attempts.
 const authLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 50 });

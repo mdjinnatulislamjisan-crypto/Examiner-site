@@ -1,5 +1,23 @@
 const PDFDocument = require('pdfkit');
 
+// Embeds a base64 data-URL image (from <input type=file> uploads or the
+// signature pad) into the report, fitting it within maxWidth/maxHeight and
+// starting a new page first if it wouldn't fit on the current one. Silently
+// skips anything that fails to decode rather than breaking the whole report.
+function embedDataUrlImage(doc, dataUrl, maxWidth, maxHeight) {
+  if (!dataUrl || !dataUrl.startsWith('data:image')) return;
+  try {
+    const base64 = dataUrl.split(',')[1];
+    const buf = Buffer.from(base64, 'base64');
+    const bottom = doc.page.height - doc.page.margins.bottom;
+    if (doc.y + maxHeight > bottom) doc.addPage();
+    doc.image(buf, { fit: [maxWidth, maxHeight] });
+    doc.moveDown(0.3);
+  } catch (e) {
+    // corrupt/unsupported image data — skip it, the rest of the report still renders
+  }
+}
+
 // Builds the graded report as a PDF and resolves with a Buffer.
 // `submission` is a Mongoose Submission doc (already graded).
 function buildReportPDF(submission) {
@@ -66,6 +84,8 @@ function buildReportPDF(submission) {
           .text(`${i + 1}. ${a.text}`, { width: 495 });
         doc.font('Helvetica').fontSize(10);
 
+        if (a.questionImage) embedDataUrlImage(doc, a.questionImage, 260, 170);
+
         if (a.type === 'mcq') {
           const yourAns = a.selectedIndex === null || a.selectedIndex === undefined
             ? 'No answer' : (a.options[a.selectedIndex] || '');
@@ -74,7 +94,8 @@ function buildReportPDF(submission) {
             .text(`Answer: ${yourAns} ${a.correct ? '(correct)' : '(incorrect — correct answer: ' + rightAns + ')'}`);
           doc.fillColor(soft).text(`Marks: ${a.correct ? a.points : 0} / ${a.points}`);
         } else {
-          doc.fillColor(soft).text(`Answer: ${a.answer || '(left blank)'}`);
+          doc.fillColor(soft).text(`Answer: ${a.answer || (a.answerImage ? '(see attached photo)' : '(left blank)')}`);
+          if (a.answerImage) embedDataUrlImage(doc, a.answerImage, 260, 200);
           if (a.referenceAnswer) doc.text(`Model answer: ${a.referenceAnswer}`);
           doc.fillColor(inkColor).font('Helvetica-Bold')
             .text(`Marks awarded: ${a.awardedMarks == null ? '-' : a.awardedMarks} / ${a.points}`);

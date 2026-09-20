@@ -132,6 +132,24 @@ Your site is now live at your Render URL, independent of your own computer.
 
 ---
 
+- **Photos on questions and answers** — on the Build Exam page, any question
+  (MCQ or short-answer) can have a photo attached — essential for math,
+  physics, chemistry and biology questions with diagrams, equations or
+  structures. Candidates can likewise attach a photo of their own worked-out
+  answer on short-answer questions (e.g. a hand-written solution). Images are
+  compressed client-side before upload to keep exam documents small, and both
+  the question image and the candidate's answer photo are embedded directly
+  into the signed PDF report.
+- **Two ways to build an exam fast** — besides typing questions in by hand,
+  the Build Exam page can **import a JSON file** (a structured export from
+  another tool) or **parse pasted plain text**: paste numbered questions
+  (Bengali or English) and it automatically detects which ones are
+  multiple-choice (by spotting lettered options like ক)/খ)/a)/b)) versus
+  short-answer, and picks up an explicit "Answer: খ" / "Ans: B" line if one is
+  present. Either way, the result lands in the normal editable question list
+  for review before saving — nothing is created automatically without you
+  seeing it first.
+
 ## How the pieces fit together
 
 - **Two kinds of accounts** — at `/register.html`, a person picks **Examiner**

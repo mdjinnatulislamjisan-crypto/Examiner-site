@@ -74,10 +74,21 @@ if (Api.requireLogin()) {
           <div class="row">
             ${s.graded
               ? `<span class="badge success">${s.finalScore} / ${s.totalMax}</span>
-                 <a class="btn btn-sm" href="/api/submissions/${s._id}/report.pdf" target="_blank">Download report</a>`
+                 <button class="btn btn-sm" data-download="${s._id}" data-name="${escapeAttr(s.examTitle)}" type="button">Download report</button>`
               : `<span class="badge pending">Awaiting grading</span>`}
           </div>
         </div>`).join('');
+      listEl.querySelectorAll('[data-download]').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          btn.disabled = true; const original = btn.textContent; btn.textContent = 'Downloading…';
+          try {
+            await Api.downloadFile(`/submissions/${btn.dataset.download}/report.pdf`, `report_${btn.dataset.name.replace(/[^a-z0-9]+/gi, '_')}.pdf`);
+          } catch (err) {
+            alert('Could not download: ' + err.message);
+          }
+          btn.disabled = false; btn.textContent = original;
+        });
+      });
     } catch (err) {
       listEl.innerHTML = `<div class="warn-banner">${err.message}</div>`;
     }
@@ -87,6 +98,7 @@ if (Api.requireLogin()) {
 function escapeHtml(s) {
   return String(s || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
+function escapeAttr(s) { return escapeHtml(s); }
 </script>
 </body>
 </html>

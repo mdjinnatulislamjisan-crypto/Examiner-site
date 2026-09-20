@@ -44,6 +44,7 @@ if (Api.requireLogin('login.html')) {
 
   let exam = null;
   let answers = {};
+  let answerImages = {};
   let remainingSeconds = 0;
   let timerId = null;
 
@@ -83,21 +84,56 @@ if (Api.requireLogin('login.html')) {
     remainingSeconds--;
   }
 
+  function attachPickerHtml(qid) {
+    return `<label class="btn btn-sm" style="display:inline-flex;">📎 Attach a photo of your work (optional — e.g. a worked-out solution)
+      <input type="file" accept="image/*" data-answer-image="${qid}" style="display:none;"></label>`;
+  }
+
+  function wireAnswerImageSlot(qid) {
+    const slot = document.querySelector(`[data-answer-image-slot="${qid}"]`);
+    if (!slot) return;
+    const input = slot.querySelector('[data-answer-image]');
+    if (!input) return;
+    input.addEventListener('change', async () => {
+      const file = input.files[0];
+      if (!file) return;
+      slot.innerHTML = '<span class="muted">Processing photo…</span>';
+      try {
+        answerImages[qid] = await compressImageFile(file);
+        slot.innerHTML = `<img src="${answerImages[qid]}" style="max-width:180px;max-height:140px;border-radius:8px;border:1px solid var(--line);display:block;">
+          <button class="btn btn-sm btn-ghost" data-remove-answer-image="${qid}" type="button" style="margin-top:6px;">Remove photo</button>`;
+        slot.querySelector('[data-remove-answer-image]').addEventListener('click', () => {
+          delete answerImages[qid];
+          slot.innerHTML = attachPickerHtml(qid);
+          wireAnswerImageSlot(qid);
+        });
+      } catch (err) {
+        slot.innerHTML = `<div class="warn-banner">${err.message}</div>${attachPickerHtml(qid)}`;
+        wireAnswerImageSlot(qid);
+      }
+    });
+  }
+
   function renderQuestions() {
     const wrap = document.getElementById('examQuestions');
     const showPts = exam.settings.showPoints !== false;
     wrap.innerHTML = exam.questions.map((q, i) => {
       const pts = showPts ? `<div class="pts">${q.points} pt${q.points > 1 ? 's' : ''}</div>` : '';
+      const qImg = q.image ? `<img src="${q.image}" style="max-width:100%;max-height:320px;border-radius:8px;border:1px solid var(--line);display:block;margin:8px 0;">` : '';
       if (q.type === 'mcq') {
         const opts = q.options.map((opt, oi) => `
           <label class="mcq-option" data-qid="${q.id}" data-oi="${oi}">
             <input type="radio" name="ans_${q.id}"><span>${escapeHtml(opt)}</span>
           </label>`).join('');
-        return `<div class="exam-q"><div class="qhead"><div class="qnum">${i+1}.</div><div>${escapeHtml(q.text)}</div>${pts}</div>${opts}</div>`;
+        return `<div class="exam-q"><div class="qhead"><div class="qnum">${i+1}.</div><div>${escapeHtml(q.text)}</div>${pts}</div>${qImg}${opts}</div>`;
       }
-      return `<div class="exam-q"><div class="qhead"><div class="qnum">${i+1}.</div><div>${escapeHtml(q.text)}</div>${pts}</div>
-        <textarea data-qid="${q.id}" placeholder="Write your answer..." style="min-height:100px;"></textarea></div>`;
+      return `<div class="exam-q"><div class="qhead"><div class="qnum">${i+1}.</div><div>${escapeHtml(q.text)}</div>${pts}</div>${qImg}
+        <textarea data-qid="${q.id}" placeholder="Write your answer..." style="min-height:100px;"></textarea>
+        <div style="margin-top:8px;" data-answer-image-slot="${q.id}">${attachPickerHtml(q.id)}</div>
+      </div>`;
     }).join('');
+
+    wrap.querySelectorAll('[data-answer-image-slot]').forEach(slot => wireAnswerImageSlot(slot.dataset.answerImageSlot));
 
     wrap.querySelectorAll('.mcq-option').forEach(lbl => lbl.addEventListener('click', () => {
       const qid = lbl.dataset.qid;
@@ -116,7 +152,7 @@ if (Api.requireLogin('login.html')) {
     if (timerId) clearInterval(timerId);
     try {
       const data = await Api.request(`/submissions/${code}/submit`, { method: 'POST', body: {
-        answers, autoSubmitted: auto,
+        answers, answerImages, autoSubmitted: auto,
       }});
       document.getElementById('examView').style.display = 'none';
       document.getElementById('resultView').style.display = 'block';
@@ -136,7 +172,7 @@ if (Api.requireLogin('login.html')) {
             const rightAns = escapeHtml(a.options[a.correctIndex]);
             return `<div class="review-line"><span>${i+1}. ${escapeHtml(a.text)}</span><span style="color:${a.correct?'var(--success)':'var(--danger)'};font-weight:600;">${yourAns}${a.correct?' ✓':' ✗ — correct: '+rightAns}</span></div>`;
           }
-          return `<div class="review-line" style="display:block;"><strong>${i+1}. ${escapeHtml(a.text)}</strong><div style="margin-top:4px;font-size:13px;">Your answer: ${escapeHtml(a.answer||'(left blank)')}</div></div>`;
+          return `<div class="review-line" style="display:block;"><strong>${i+1}. ${escapeHtml(a.text)}</strong><div style="margin-top:4px;font-size:13px;">Your answer: ${escapeHtml(a.answer||(a.answerImage?'(see attached photo)':'(left blank)'))}</div>${a.answerImage ? `<img src="${a.answerImage}" style="max-width:200px;max-height:150px;border-radius:8px;border:1px solid var(--line);margin-top:6px;">` : ''}</div>`;
         }).join('');
       }
       document.getElementById('resultBody').innerHTML = html;

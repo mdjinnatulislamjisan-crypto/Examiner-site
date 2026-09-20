@@ -18,7 +18,7 @@ router.post('/:code/submit', requireAuth, async (req, res) => {
     const candidateUser = await User.findById(req.userId);
     if (!candidateUser) return res.status(401).json({ error: 'Please log in again.' });
 
-    const { answers, autoSubmitted } = req.body || {};
+    const { answers, answerImages, autoSubmitted } = req.body || {};
     const candidateName = candidateUser.name;
     const candidateEmail = candidateUser.email;
 
@@ -37,14 +37,17 @@ router.post('/:code/submit', requireAuth, async (req, res) => {
         const correct = sel !== null && sel === q.correctIndex;
         if (correct) mcqScore += q.points;
         return {
-          questionId: q._id, type: 'mcq', text: q.text, points: q.points,
+          questionId: q._id, type: 'mcq', text: q.text, points: q.points, questionImage: q.image || '',
           options: q.options, selectedIndex: sel, correctIndex: q.correctIndex, correct,
         };
       } else {
         sqMax += q.points;
+        const img = answerImages ? answerImages[String(q._id)] : undefined;
         return {
-          questionId: q._id, type: 'sq', text: q.text, points: q.points,
-          answer: typeof submitted === 'string' ? submitted : '', referenceAnswer: q.referenceAnswer || '',
+          questionId: q._id, type: 'sq', text: q.text, points: q.points, questionImage: q.image || '',
+          answer: typeof submitted === 'string' ? submitted : '',
+          answerImage: typeof img === 'string' && img.startsWith('data:image') ? img : '',
+          referenceAnswer: q.referenceAnswer || '',
           awardedMarks: null,
         };
       }
